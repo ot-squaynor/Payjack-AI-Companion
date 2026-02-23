@@ -364,5 +364,94 @@ When complete, the system provides:
 - Production-grade infrastructure alignment
 
 ---
+## 📦 Repository Overview
 
+The Payjack AI Financial Companion repository is structured to support a secure, modular, production-grade AI system deployed on AWS ECS and powered by Amazon Bedrock.
+
+The architecture separates responsibilities clearly across application logic, data processing, retrieval systems, financial tools, security enforcement, testing, and infrastructure.
+
+This ensures:
+
+- Clean separation of concerns  
+- Read-only financial data handling  
+- RAG-grounded documentation responses  
+- Strict compliance enforcement  
+- Scalable microservice evolution  
+- Enterprise deployment readiness  
+
+---
+
+## 📁 Folder Structure
+```
+payjack-ai-companion/
+│
+├── app/                         # Core runtime (deployed to ECS)
+│   ├── api/                     # HTTP routes and schemas
+│   ├── data_pipeline/           # Data cleaning & normalization
+│   ├── llm/
+│   │   ├── autoregressive/      # Bedrock generative models
+│   │   └── embedding/           # Vector/encoding models
+│   ├── orchestrator/            # Intent routing & workflow logic
+│   ├── rag/                     # Retrieval-Augmented Generation logic
+│   ├── security/                # PII redaction & guardrails
+│   ├── telemetry/               # Logging, metrics, cost tracking
+│   └── tools/                   # Read-only financial tools
+│
+├── data/                        # Local development datasets
+│   ├── embeddings/              # Vectorized datasets
+│   ├── mock/                    # Synthetic test data
+│   ├── processed/               # Cleaned datasets
+│   └── raw/                     # Raw corp or exported datasets
+│
+├── kb/                          # Knowledge Base for RAG
+│   ├── metadata/                # Retrieval metadata definitions
+│   ├── processed_docs/          # Cleaned Markdown files
+│   └── raw_docs/                # Original documentation exports
+│
+├── infra/                       # AWS infrastructure references
+│   ├── bedrock/
+│   ├── ecs/
+│   ├── iam/
+│   ├── kms/
+│   └── s3/
+│
+├── scripts/                     # Operational utilities
+│
+├── tests/                       # System validation
+│   ├── integration/
+│   ├── llm_tests/
+│   ├── rag_tests/
+│   ├── tool_tests/
+│   ├── red_team_tests/
+│   └── unit/
+│
+├── Dockerfile                   # ECS container definition
+├── requirements.txt             # Python dependencies
+├── .env.example                 # Environment variable template
+└── README.md
+```
+---
+
+## 🧠 Structural Logic
+
+- `app/` contains all runtime logic deployed to AWS ECS.
+- `tools/` modules are deterministic and return structured financial data.
+- `rag/` ensures documentation-grounded responses.
+- `llm/` isolates all Bedrock interaction.
+- `security/` centralizes compliance and policy enforcement.
+- `data_pipeline/` ensures raw financial data is normalized before interpretation.
+- `infra/` documents deployment and cloud configuration.
+- `tests/` protects system integrity before release.
+
+This structure is intentionally modular to support future scaling, microservice separation, and strict regulatory review.
+
+The system is designed to be:
+
+- Read-only  
+- Transaction-led  
+- RAG-grounded  
+- Agent-orchestrated  
+- PCI-aligned  
+- ISO27001-aligned  
+- AWS-native  
 **This repository represents the complete foundation for a scalable, secure AI financial companion within OrangeTech’s AWS ecosystem.**
