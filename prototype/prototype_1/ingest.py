@@ -1,3 +1,4 @@
+# This script ingests markdown documents from the knowledge base, creates chunks, generates embeddings, and stores them in a Chroma vector database.
 import os
 import glob
 from pathlib import Path
@@ -10,6 +11,7 @@ from langchain_openai import OpenAIEmbeddings
 
 from dotenv import load_dotenv
 
+# Load environment variables from .env file, with override to ensure latest values are used
 MODEL = "gpt-4.1-nano"
 
 DB_NAME = str(Path(__file__).parent.parent / "vector_db")
@@ -21,7 +23,7 @@ load_dotenv(override=True)
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
 
-
+# Number of top relevant documents to retrieve for each question
 def fetch_documents():
     folders = glob.glob(str(Path(KNOWLEDGE_BASE) / "*"))
     documents = []
@@ -36,13 +38,13 @@ def fetch_documents():
             documents.append(doc)
     return documents
 
-
+# Create chunks of text from the documents, with overlap to preserve context
 def create_chunks(documents):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = text_splitter.split_documents(documents)
     return chunks
 
-
+# Create embeddings for the chunks and store them in a Chroma vector database
 def create_embeddings(chunks):
     if os.path.exists(DB_NAME):
         Chroma(persist_directory=DB_NAME, embedding_function=embeddings).delete_collection()
@@ -59,7 +61,7 @@ def create_embeddings(chunks):
     print(f"There are {count:,} vectors with {dimensions:,} dimensions in the vector store")
     return vectorstore
 
-
+# Main function to run the ingestion process
 if __name__ == "__main__":
     documents = fetch_documents()
     chunks = create_chunks(documents)

@@ -1,3 +1,4 @@
+# This script defines the evaluation dashboard for the RAG system, allowing users to run retrieval and answer evaluations with real-time progress updates and visualizations.
 import gradio as gr
 import pandas as pd
 from collections import defaultdict
@@ -19,7 +20,7 @@ COVERAGE_AMBER = 75.0
 ANSWER_GREEN = 4.5
 ANSWER_AMBER = 4.0
 
-
+# Helper functions for formatting metrics with color coding
 def get_color(value: float, metric_type: str) -> str:
     """Get color based on metric value and type."""
     if metric_type == "mrr":
@@ -52,7 +53,7 @@ def get_color(value: float, metric_type: str) -> str:
             return "red"
     return "black"
 
-
+# Function to format a metric as HTML with color coding
 def format_metric_html(
     label: str,
     value: float,
@@ -75,7 +76,7 @@ def format_metric_html(
     </div>
     """
 
-
+# Evaluation functions that run the evaluations and yield updates for the Gradio interface
 def run_retrieval_evaluation(progress=gr.Progress()):
     """Run retrieval evaluation and yield updates."""
     total_mrr = 0.0
@@ -122,7 +123,7 @@ def run_retrieval_evaluation(progress=gr.Progress()):
 
     return final_html, df
 
-
+# Similar function for answer evaluation
 def run_answer_evaluation(progress=gr.Progress()):
     """Run answer evaluation and yield updates (async)."""
     total_accuracy = 0.0
@@ -169,7 +170,7 @@ def run_answer_evaluation(progress=gr.Progress()):
 
     return final_html, df
 
-
+# Main function to launch the Gradio app
 def main():
     """Launch the Gradio evaluation app."""
     theme = gr.themes.Soft(font=["Inter", "system-ui", "sans-serif"])

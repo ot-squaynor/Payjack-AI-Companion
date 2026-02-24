@@ -176,3 +176,6 @@ challenge/
 wandb/
 
 local/
+.env
+
+.env

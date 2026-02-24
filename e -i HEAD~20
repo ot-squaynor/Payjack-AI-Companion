@@ -1,0 +1,12 @@
+[33m32ee18d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Ignore .env
+[33m213090b[m Gradio UI app implementation
+[33m83dcfed[m Addition of evaluation, ingestion, and interface method for prototype, currently uses Gradio library which is only suitable for web access. will have to switch to relevant react app message to make it suitable for payjack. kb files is in need of adjustment and fine tuning as we recieve dataset files. ideal processing format is JSON or Markdown
+[33m447ca9d[m ingest.py
+[33mbdd2349[m evaluator.py
+[33mff184b0[m app.py
+[33mf161e3e[m answer.py
+[33ma1b1380[m .gitignore Additions
+[33me7768bc[m Prototype 1
+[33mf5abcbc[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Initial app scaffolding
+[33me1b5038[m Update README.md
+[33mbf42854[m Initial commit
