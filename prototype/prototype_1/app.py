@@ -1,3 +1,4 @@
+# This script sets up a Gradio web interface for the Payjack AI Expert Assistant. It allows users to ask questions about Payjack and retrieves relevant context from a vector database to provide informed answers using a language model.
 import gradio as gr
 from dotenv import load_dotenv
 
@@ -5,7 +6,7 @@ from answer import answer_question
 
 load_dotenv(override=True)
 
-
+# Color coding thresholds - Retrieval
 def format_context(context):
     result = "<h2 style='color: #ff7800;'>Relevant Context</h2>\n\n"
     for doc in context:
@@ -13,7 +14,7 @@ def format_context(context):
         result += doc.page_content + "\n\n"
     return result
 
-
+# Main function to handle the chat interaction
 def chat(history):
     last_message = history[-1]["content"]
     prior = history[:-1]
@@ -21,7 +22,7 @@ def chat(history):
     history.append({"role": "assistant", "content": answer})
     return history, format_context(context)
 
-
+# Main function to launch the Gradio interface
 def main():
     def put_message_in_chatbot(message, history):
         return "", history + [{"role": "user", "content": message}]
