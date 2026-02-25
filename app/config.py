@@ -1,0 +1,1 @@
+#environment config (Bedrock model IDs, KB IDs, AWS region, logging settings)

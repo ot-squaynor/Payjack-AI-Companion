@@ -1,0 +1,1 @@
+#FastAPI entrypoint (mount routes, middleware, startup hooks)
