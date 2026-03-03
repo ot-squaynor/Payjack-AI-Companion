@@ -24,4 +24,4 @@ from typing import Dict, Mapping, Optional, Tuple, Iterable # for type hints
 import json
 import logging # Ingestion needs strong observability: “what file did I load”, “why did it fail”.
 import os
-import pandas as pd
+import pandas as pd # pandas is a common choice for tabular data manipulation, but we could swap in something else if needed.
