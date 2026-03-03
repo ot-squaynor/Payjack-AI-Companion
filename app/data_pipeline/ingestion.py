@@ -33,4 +33,75 @@ import pandas as pd # pandas is a common choice for tabular data manipulation, b
 
 #CONSTANTS:
 SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}# We can easily add more formats later (e.g., Parquet, Avro) if needed.
-COLUMN_ALIASES: Dict[str, str]
+COLUMN_ALIASES: Dict[str, str] # Maps common variations of column names to a standardized name. This helps ensure consistency across datasets.
+
+#
+logger = logging.getLogger(__name__) # Use a module-level logger for better control over logging output.
+
+#CLASS DEFINITIONS:
+# Custom exception for ingestion errors, to keep error handling clean and specific.
+class IngestionError(RuntimeError):
+    """
+    Raised when raw dataset loading/validation fails.
+
+    Why a custom exception:
+    - allows callers (scripts/tests) to catch ingestion-specific failures
+    - keeps tracebacks clean and failure reasons explicit
+    """
+    pass
+
+# Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
+@dataclass(frozen=True)
+class DatasetSpec:
+    """
+    Minimal ingestion contract for a dataset.
+
+    Keep `required_columns` intentionally small:
+    - ingestion should accept messy but usable exports
+    - stricter constraints belong in `quality_checks.py`
+    """
+    name: str
+    required_columns: Tuple[str, ...]
+    date_columns: Tuple[str, ...] = ()
+    numeric_columns: Tuple[str, ...] = ()
+    string_columns: Tuple[str, ...] = ()
+
+
+def _specs() -> Dict[str, DatasetSpec]:
+    """
+    Single source of truth for ingestion expectations.
+
+    Notes:
+    - These are canonical *post-standardization* names.
+    - Expand gradually as your real exports stabilize.
+    """
+    return {
+        "transactions": DatasetSpec(
+            name="transactions",
+            required_columns=("transaction_id", "account_id", "amount", "currency", "timestamp"),
+            date_columns=("timestamp",),
+            numeric_columns=("amount",),
+            string_columns=("transaction_id", "account_id", "currency", "merchant", "category", "description"),
+        ),
+        "accounts": DatasetSpec(
+            name="accounts",
+            required_columns=("account_id", "account_name"),
+            string_columns=("account_id", "account_name", "account_type", "currency"),
+        ),
+        "fees_and_limits": DatasetSpec(
+            name="fees_and_limits",
+            required_columns=("item_id", "item_type", "value"),
+            numeric_columns=("value",),
+            string_columns=("item_id", "item_type", "unit", "notes"),
+        ),
+        "products": DatasetSpec(
+            name="products",
+            required_columns=("product_id", "product_name"),
+            string_columns=("product_id", "product_name", "product_type"),
+        ),
+        "metadata": DatasetSpec(
+            name="metadata",
+            required_columns=("key", "value"),
+            string_columns=("key", "value", "source"),
+        ),
+    }
