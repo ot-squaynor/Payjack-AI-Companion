@@ -25,3 +25,12 @@ import json
 import logging # Ingestion needs strong observability: “what file did I load”, “why did it fail”.
 import os
 import pandas as pd # pandas is a common choice for tabular data manipulation, but we could swap in something else if needed.
+
+# #CONFIG:
+# RAW_DATA_DIR = Path("data/raw") # Base directory for raw datasets. In a real system, this might be an S3 bucket or database connection string.
+# # Set up logging
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+#CONSTANTS:
+SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}# We can easily add more formats later (e.g., Parquet, Avro) if needed.
+COLUMN_ALIASES: Dict[str, str]
