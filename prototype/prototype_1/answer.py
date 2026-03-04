@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 MODEL = "gpt-4.1-nano"
-DB_NAME = str(Path(__file__).parent.parent / "vector_db")
+DB_NAME = str(Path(__file__).parent.parent / "test_vector_db")
 
 # embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large")
@@ -20,7 +20,7 @@ RETRIEVAL_K = 10
 
 SYSTEM_PROMPT = """
 You are a knowledgeable, friendly assistant representing the company Payjack.
-You are chatting with a user about Payjack.
+You are chatting with a user about Payjack internal features: Transactions, FAQs, Errors, Fees, Limits, and products.
 If relevant, use the given context to answer any question.
 If you don't know the answer, say so.
 Context:
