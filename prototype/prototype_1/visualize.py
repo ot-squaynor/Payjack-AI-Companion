@@ -84,21 +84,32 @@ def visualize_vectorstore(vectorstore: Chroma):
             f"Chroma collection is empty (0 vectors). Run ingest.py first. DB: {DB_NAME}"
         )
 
-    sample_embedding = collection.get(limit=1, include=["embeddings"])["embeddings"][0]
-    dimensions = len(sample_embedding)
+    sample = collection.get(limit=1, include=["embeddings"])
+    if sample.get("embeddings") is None or len(sample["embeddings"]) == 0:
+        raise RuntimeError("No embeddings returned for sample. Something is wrong with the stored collection.")
+
+    dimensions = len(sample["embeddings"][0])
     print(f"There are {count:,} vectors with {dimensions:,} dimensions in the vector store")
 
     # Get all stored vectors
     result = collection.get(include=["embeddings", "documents", "metadatas"])
 
-    embeddings_list = result.get("embeddings") or []
-    documents = result.get("documents") or []
-    metadatas = result.get("metadatas") or []
+    # --- FIX: avoid `or []` with numpy arrays (ambiguous truth value) ---
+    embeddings_list = result.get("embeddings")
+    documents = result.get("documents")
+    metadatas = result.get("metadatas")
 
-    if not embeddings_list:
+    if embeddings_list is None:
+        embeddings_list = []
+    if documents is None:
+        documents = []
+    if metadatas is None:
+        metadatas = []
+
+    if len(embeddings_list) == 0:
         raise RuntimeError("No embeddings returned from Chroma. Collection may be empty or corrupted.")
 
-    vectors = np.array(embeddings_list)
+    vectors = np.asarray(embeddings_list)
 
     # Safe doc_type extraction (won't crash if missing)
     doc_types = [
@@ -106,32 +117,56 @@ def visualize_vectorstore(vectorstore: Chroma):
         for m in metadatas
     ]
 
-    palette = {"products": "blue", "employees": "green", "contracts": "red", "company": "orange"}
+    # Update palette to match YOUR knowledgebase folders
+    palette = {
+        "accounts": "blue",
+        "errors": "red",
+        "features": "green",
+        "fees": "orange",
+        "help_center": "purple",
+        "limits": "brown",
+        "metadata": "gray",
+        "products": "pink",
+        "transactions": "black",
+    }
     colors = [palette.get(t, "gray") for t in doc_types]
 
-    # Return data so you can plot it (PCA/TSNE) in the next step
-    # We humans find it easier to visalize things in 2D!
-    # Reduce the dimensionality of the vectors to 2D using t-SNE
-    # (t-distributed stochastic neighbor embedding)
-
-    tsne = TSNE(n_components=2, random_state=42)
+    # t-SNE reduction to 2D
+    tsne = TSNE(
+        n_components=2,
+        random_state=42,
+        init="pca",
+        learning_rate="auto",
+        perplexity=min(30, max(5, (len(vectors) - 1) // 3)),  # safer for small/large sets
+    )
     reduced_vectors = tsne.fit_transform(vectors)
 
     # Create the 2D scatter plot
-    fig = go.Figure(data=[go.Scatter(
-        x=reduced_vectors[:, 0],
-        y=reduced_vectors[:, 1],
-        mode='markers',
-        marker=dict(size=5, color=colors, opacity=0.8),
-        text=[f"Type: {t}<br>Text: {d[:100]}..." for t, d in zip(doc_types, documents)],
-        hoverinfo='text'
-    )])
+    hover_text = [
+        f"Type: {t}<br>Source: {m.get('source','')}<br>Text: {d[:200]}..."
+        for t, d, m in zip(doc_types, documents, metadatas)
+    ]
 
-    fig.update_layout(title='2D Chroma Vector Store Visualization',
-        scene=dict(xaxis_title='x',yaxis_title='y'),
-        width=800,
-        height=600,
-        margin=dict(r=20, b=10, l=10, t=40)
+    fig = go.Figure(
+        data=[
+            go.Scatter(
+                x=reduced_vectors[:, 0],
+                y=reduced_vectors[:, 1],
+                mode="markers",
+                marker=dict(size=5, color=colors, opacity=0.8),
+                text=hover_text,
+                hoverinfo="text",
+            )
+        ]
+    )
+
+    fig.update_layout(
+        title="2D Chroma Vector Store Visualization (t-SNE)",
+        xaxis_title="x",
+        yaxis_title="y",
+        width=900,
+        height=650,
+        margin=dict(r=20, b=10, l=10, t=40),
     )
 
     fig.show()
