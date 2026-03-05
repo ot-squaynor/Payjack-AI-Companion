@@ -32,8 +32,8 @@ import pandas as pd # pandas is a common choice for tabular data manipulation, b
 # logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 #CONSTANTS:
-SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}# We can easily add more formats later (e.g., Parquet, Avro) if needed.
-COLUMN_ALIASES: Dict[str, str] # Maps common variations of column names to a standardized name. This helps ensure consistency across datasets.
+#SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}# We can easily add more formats later (e.g., Parquet, Avro) if needed.
+#COLUMN_ALIASES: Dict[str, str] # Maps common variations of column names to a standardized name. This helps ensure consistency across datasets.
 
 #
 logger = logging.getLogger(__name__) # Use a module-level logger for better control over logging output.
@@ -105,3 +105,95 @@ def _specs() -> Dict[str, DatasetSpec]:
             string_columns=("key", "value", "source"),
         ),
     }
+# Supported raw file extensions for ingestion
+SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}
+
+# Maps common “messy” headers -> canonical headers.
+# Extend this over time as you see real export variants.
+COLUMN_ALIASES: Dict[str, str] = {
+    # Transaction identifiers
+    "id": "transaction_id",
+    "tx_id": "transaction_id",
+    "transactionid": "transaction_id",
+    "transaction_id": "transaction_id",
+
+    # Account identifiers
+    "accountid": "account_id",
+    "acct_id": "account_id",
+    "account_id": "account_id",
+
+    # Timestamps
+    "date": "timestamp",
+    "datetime": "timestamp",
+    "created_at": "timestamp",
+    "timestamp": "timestamp",
+
+    # Money
+    "amt": "amount",
+    "amount": "amount",
+    "ccy": "currency",
+    "currency": "currency",
+
+    # Descriptors
+    "merchantname": "merchant",
+    "merchant": "merchant",
+    "narration": "description",
+    "description": "description",
+    "category": "category",
+
+    # Accounts
+    "accountname": "account_name",
+    "account_name": "account_name",
+
+    # Products
+    "productid": "product_id",
+    "product_id": "product_id",
+    "productname": "product_name",
+    "product_name": "product_name",
+
+    # Fees/limits/metadata style tables
+    "type": "item_type",
+    "item_type": "item_type",
+    "value": "value",
+    "unit": "unit",
+    "notes": "notes",
+    "key": "key",
+    "val": "value",
+}
+
+
+def standardize_column_name(col: str) -> str:
+    """
+    Convert a raw column label into a canonical column label.
+
+    Steps:
+    - strip whitespace
+    - lowercase
+    - replace separators with underscores
+    - remove non-alphanumeric/underscore characters
+    - apply alias mapping for known variants
+
+    Why:
+    - real exports are inconsistent; canonical schema must still work reliably
+    """
+    if col is None:
+        return col
+
+    c = str(col).strip().lower()
+    c = c.replace(" ", "_").replace("-", "_").replace("/", "_")
+    while "__" in c:
+        c = c.replace("__", "_")
+
+    # Remove most punctuation safely
+    c = "".join(ch for ch in c if ch.isalnum() or ch == "_")
+
+    return COLUMN_ALIASES.get(c, c)
+
+
+def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return a copy of the DataFrame with standardized canonical column names.
+    """
+    out = df.copy()
+    out.columns = [standardize_column_name(c) for c in out.columns]
+    return out
