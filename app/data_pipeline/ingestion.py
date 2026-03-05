@@ -475,3 +475,4 @@ if __name__ == "__main__":
     paths = write_intermediate(bundle, Path("data/processed"), fmt="parquet")
 
     logger.info("Wrote ingestion intermediates: %s", {k: str(v) for k, v in paths.items()})
+# Needs a little more work to be a full standalone script (e.g., command-line args for raw/processed paths, format), but this is the core logic for ingestion.
