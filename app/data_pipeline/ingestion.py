@@ -388,3 +388,90 @@ def ingest_dataset(folder: Path, spec: DatasetSpec) -> pd.DataFrame:
     df = df.dropna(how="all")
 
     return df
+
+#BRICK 6
+def load_raw_bundle(
+    raw_root: Path | str = Path("data/raw"),
+    strict: bool = True,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Load all datasets defined in `_specs()` into a consistent bundle.
+
+    Args:
+        raw_root: root directory containing per-dataset subfolders
+        strict:
+            - True: raise on any missing/invalid dataset (best for CI, production-like runs)
+            - False: skip datasets that fail to load (best for early local iteration)
+
+    Returns:
+        dict mapping dataset_name -> DataFrame
+    """
+    raw_root = Path(raw_root)
+    bundle: Dict[str, pd.DataFrame] = {}
+
+    for name, spec in _specs().items():
+        folder = raw_root / name
+        try:
+            bundle[name] = ingest_dataset(folder, spec)
+        except IngestionError as e:
+            if strict:
+                raise
+            logger.warning("Skipping dataset '%s' due to ingestion error: %s", name, e)
+
+    return bundle
+
+
+def write_intermediate(
+    bundle: Mapping[str, pd.DataFrame],
+    out_dir: Path | str = Path("data/processed"),
+    fmt: str = "parquet",
+) -> Dict[str, Path]:
+    """
+    Persist ingestion outputs as intermediate artifacts.
+
+    Why:
+    - reproducibility (same inputs -> same intermediate files)
+    - speed (downstream stages can start from processed files)
+    - clean seam: ingestion boundary vs normalization/business logic
+
+    Supported formats:
+    - parquet (recommended)
+    - csv
+    - jsonl
+
+    Returns:
+        dict mapping dataset_name -> written file path
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    fmt = fmt.lower().strip()
+    written: Dict[str, Path] = {}
+
+    for name, df in bundle.items():
+        if fmt == "parquet":
+            path = out_dir / f"{name}.parquet"
+            df.to_parquet(path, index=False)
+        elif fmt == "csv":
+            path = out_dir / f"{name}.csv"
+            df.to_csv(path, index=False)
+        elif fmt == "jsonl":
+            path = out_dir / f"{name}.jsonl"
+            df.to_json(path, orient="records", lines=True, force_ascii=False)
+        else:
+            raise IngestionError(f"Unsupported intermediate format '{fmt}'")
+
+        written[name] = path
+
+    return written
+
+
+if __name__ == "__main__":
+    # Optional: allows quick manual runs like:
+    #   python -m app.data_pipeline.ingestion
+    logging.basicConfig(level=logging.INFO)
+
+    bundle = load_raw_bundle(Path("data/raw"), strict=False)
+    paths = write_intermediate(bundle, Path("data/processed"), fmt="parquet")
+
+    logger.info("Wrote ingestion intermediates: %s", {k: str(v) for k, v in paths.items()})
