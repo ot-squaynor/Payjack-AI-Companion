@@ -16,6 +16,7 @@ Goal:
 
 This module intentionally does NOT apply business rules (that's normalization).
 """
+#BRICK 1: Imports and configuration, including logging setup and constants for supported file types and column aliases.
 #IMPORTS:
 from __future__ import annotations
 from dataclasses import dataclass
@@ -50,7 +51,7 @@ class IngestionError(RuntimeError):
     """
     pass
 
-# Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
+#BRICK 2:Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
 @dataclass(frozen=True)
 class DatasetSpec:
     """
@@ -105,6 +106,8 @@ def _specs() -> Dict[str, DatasetSpec]:
             string_columns=("key", "value", "source"),
         ),
     }
+
+#BRICK 3: Constants and helper functions for column standardization, including a mapping of common “messy” header variants to canonical names.
 # Supported raw file extensions for ingestion
 SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}
 
@@ -197,3 +200,95 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out.columns = [standardize_column_name(c) for c in out.columns]
     return out
+
+#BRICK 4: Ingestion function to load a raw dataset file into a DataFrame, with support for multiple formats and error handling.
+def load_table(path: Path) -> pd.DataFrame:
+    """
+    Load a raw dataset file into a DataFrame.
+
+    Supported:
+    - CSV
+    - XLS/XLSX (first sheet)
+    - JSON (list[dict] or dict-wrapped list)
+    - JSONL (one JSON object per line)
+
+    Why:
+    - keeps file-format complexity out of business logic
+    - makes ingestion easy to unit test
+    """
+    if not path.exists():
+        raise IngestionError(f"Missing file: {path}")
+
+    ext = path.suffix.lower()
+    if ext not in SUPPORTED_EXTS:
+        raise IngestionError(
+            f"Unsupported file type '{ext}' for {path}. Supported: {sorted(SUPPORTED_EXTS)}"
+        )
+
+    try:
+        if ext == ".csv":
+            # Try BOM-friendly encoding first (common with Excel exports).
+            try:
+                return pd.read_csv(path, encoding="utf-8-sig")
+            except UnicodeDecodeError:
+                return pd.read_csv(path, encoding="utf-8")
+
+        if ext in {".xlsx", ".xls"}:
+            return pd.read_excel(path, sheet_name=0)
+
+        if ext == ".json":
+            with path.open("r", encoding="utf-8") as f:
+                obj = json.load(f)
+
+            if isinstance(obj, list):
+                return pd.DataFrame(obj)
+
+            if isinstance(obj, dict):
+                # Common “wrapped array” patterns
+                for key in ("data", "items", "records", "rows"):
+                    if key in obj and isinstance(obj[key], list):
+                        return pd.DataFrame(obj[key])
+
+                # Fallback: treat dict as a single record
+                return pd.DataFrame([obj])
+
+            raise IngestionError(f"Unsupported JSON structure in {path}")
+
+        if ext == ".jsonl":
+            rows = []
+            with path.open("r", encoding="utf-8") as f:
+                for i, line in enumerate(f, start=1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(json.loads(line))
+                    except json.JSONDecodeError as e:
+                        raise IngestionError(f"Invalid JSON on line {i} in {path}: {e}") from e
+            return pd.DataFrame(rows)
+
+        # Should never hit this due to SUPPORTED_EXTS check above
+        raise IngestionError(f"Unhandled file type '{ext}' for {path}")
+
+    except IngestionError:
+        raise
+    except Exception as e:
+        raise IngestionError(f"Failed to load {path}: {e}") from e
+
+
+def discover_latest_file(folder: Path) -> Optional[Path]:
+    """
+    Pick the most recently modified supported file within a dataset folder.
+
+    Why:
+    - early-stage pipelines often drop a single export file into the folder
+    - reduces configuration friction while iterating
+    """
+    if not folder.exists() or not folder.is_dir():
+        return None
+
+    candidates = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS]
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda p: p.stat().st_mtime)
