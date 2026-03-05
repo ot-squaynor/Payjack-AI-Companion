@@ -292,3 +292,99 @@ def discover_latest_file(folder: Path) -> Optional[Path]:
         return None
 
     return max(candidates, key=lambda p: p.stat().st_mtime)
+
+#BRICK 5: Type coercion and validation functions to ensure that the ingested DataFrame has the expected types for date, numeric, and string columns, and that required columns are present.
+def _coerce_dates(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
+    """
+    Coerce selected columns to UTC datetime.
+
+    Why:
+    - downstream recurring detection and time filtering must not depend on string dates
+    """
+    out = df.copy()
+    for c in cols:
+        if c in out.columns:
+            out[c] = pd.to_datetime(out[c], errors="coerce", utc=True)
+    return out
+
+
+def _coerce_numeric(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
+    """
+    Coerce selected columns to numeric (float/int).
+
+    Handles common formatting issues:
+    - commas: "1,234.50"
+    - currency symbols: "£12.00" "$12.00"
+
+    Why:
+    - tools and summaries must not do math on strings
+    """
+    out = df.copy()
+    for c in cols:
+        if c in out.columns:
+            s = out[c].astype(str).str.replace(",", "", regex=False)
+            s = s.str.replace("£", "", regex=False).str.replace("$", "", regex=False)
+            out[c] = pd.to_numeric(s, errors="coerce")
+    return out
+
+
+def _coerce_strings(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
+    """
+    Force selected columns to pandas string dtype.
+
+    Why:
+    - IDs should not accidentally become floats (e.g., 00123 -> 123.0)
+    """
+    out = df.copy()
+    for c in cols:
+        if c in out.columns:
+            out[c] = out[c].astype("string")
+    return out
+
+
+def validate_required_columns(df: pd.DataFrame, required: Iterable[str], dataset_name: str) -> None:
+    """
+    Fail-fast if required columns are missing.
+
+    Why:
+    - without the minimum set, downstream stages will break in harder-to-debug ways
+    """
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise IngestionError(
+            f"[{dataset_name}] Missing required columns: {missing}. "
+            f"Present columns: {sorted(df.columns.tolist())}"
+        )
+
+
+def ingest_dataset(folder: Path, spec: DatasetSpec) -> pd.DataFrame:
+    """
+    Load + standardize + coerce + validate a single dataset from its folder.
+
+    Folder convention:
+        data/raw/<dataset_name>/
+            <export>.csv|json|xlsx|jsonl
+
+    Why:
+    - provides a single consistent ingestion operation for all datasets
+    """
+    file_path = discover_latest_file(folder)
+    if file_path is None:
+        raise IngestionError(f"[{spec.name}] No supported files found in {folder}")
+
+    logger.info("Ingesting '%s' from %s", spec.name, file_path)
+
+    df = load_table(file_path)
+    df = standardize_columns(df)
+
+    # Coerce types conservatively based on spec hints
+    df = _coerce_dates(df, spec.date_columns)
+    df = _coerce_numeric(df, spec.numeric_columns)
+    df = _coerce_strings(df, spec.string_columns)
+
+    validate_required_columns(df, spec.required_columns, dataset_name=spec.name)
+
+    # Minimal cleanup: remove completely empty rows
+    df = df.dropna(how="all")
+
+    return df
