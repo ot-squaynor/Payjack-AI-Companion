@@ -177,3 +177,4 @@ if __name__ == "__main__":
     vectors, documents, metadatas, doc_types, colors = visualize_vectorstore(vectorstore)
     print("vectors shape:", vectors.shape)
     print("sample doc_type counts:", {t: doc_types.count(t) for t in set(doc_types)})
+    #
