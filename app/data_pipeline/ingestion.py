@@ -16,7 +16,7 @@ Goal:
 
 This module intentionally does NOT apply business rules (that's normalization).
 """
-#BRICK 1: Imports and configuration, including logging setup and constants for supported file types and column aliases.
+##BRICK 1: Imports and configuration, including logging setup and constants for supported file types and column aliases.
 #IMPORTS:
 from __future__ import annotations
 from dataclasses import dataclass
@@ -51,7 +51,7 @@ class IngestionError(RuntimeError):
     """
     pass
 
-#BRICK 2:Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
+##BRICK 2:Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
 @dataclass(frozen=True)
 class DatasetSpec:
     """
@@ -107,7 +107,7 @@ def _specs() -> Dict[str, DatasetSpec]:
         ),
     }
 
-#BRICK 3: Constants and helper functions for column standardization, including a mapping of common “messy” header variants to canonical names.
+##BRICK 3: Constants and helper functions for column standardization, including a mapping of common “messy” header variants to canonical names.
 # Supported raw file extensions for ingestion
 SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}
 
@@ -201,7 +201,7 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     out.columns = [standardize_column_name(c) for c in out.columns]
     return out
 
-#BRICK 4: Ingestion function to load a raw dataset file into a DataFrame, with support for multiple formats and error handling.
+##BRICK 4: Ingestion function to load a raw dataset file into a DataFrame, with support for multiple formats and error handling.
 def load_table(path: Path) -> pd.DataFrame:
     """
     Load a raw dataset file into a DataFrame.
@@ -293,7 +293,7 @@ def discover_latest_file(folder: Path) -> Optional[Path]:
 
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
-#BRICK 5: Type coercion and validation functions to ensure that the ingested DataFrame has the expected types for date, numeric, and string columns, and that required columns are present.
+##BRICK 5: Type coercion and validation functions to ensure that the ingested DataFrame has the expected types for date, numeric, and string columns, and that required columns are present.
 def _coerce_dates(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
     """
     Coerce selected columns to UTC datetime.
@@ -310,7 +310,7 @@ def _coerce_dates(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
 
 def _coerce_numeric(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
     """
-    Coerce selected columns to numeric (float/int).
+    Convert selected columns to numeric (float/int).
 
     Handles common formatting issues:
     - commas: "1,234.50"
@@ -389,7 +389,7 @@ def ingest_dataset(folder: Path, spec: DatasetSpec) -> pd.DataFrame:
 
     return df
 
-#BRICK 6
+##BRICK 6
 def load_raw_bundle(
     raw_root: Path | str = Path("data/raw"),
     strict: bool = True,
