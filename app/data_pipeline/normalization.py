@@ -19,3 +19,53 @@ Non-goal: deep integrity enforcement (that’s quality_checks.py). Normalization
 
 """CURRENCY_ALIASES: dict[str, str]
 e.g., "GHC" -> "GHS", "cedi" -> "GHS", "gbp" -> "GBP" """
+
+
+"""
+Normalization layer for ingested datasets.
+
+Responsibilities:
+- Convert ingested-but-messy data into canonical business-ready data
+- Standardize currencies, merchant strings, categories, and account/product fields
+- Derive helper fields used later by recurring logic, tools, and QC
+- Return a normalized bundle of pandas DataFrames
+
+Non-goals:
+- No raw file loading (handled by ingestion.py)
+- No deep integrity enforcement (handled by quality_checks.py)
+- No LLM/AWS/tool/runtime orchestration logic
+"""
+##BRICK 1: Define NormalizationConfig dataclass for configurable normalization behavior.
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass
+from typing import Dict, Mapping, Optional
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+class NormalizationError(RuntimeError):
+    """
+    Raised when a normalization step fails in a pipeline-specific way.
+
+    Why a custom exception:
+    - distinguishes normalization failures from ingestion failures
+    - keeps pipeline error handling cleaner in scripts/tests
+    """
+
+
+@dataclass(frozen=True)
+class NormalizationConfig:
+    """
+    Configurable normalization behavior.
+
+    Keep policy choices here rather than burying them in transforms.
+    """
+    default_currency: Optional[str] = None
+    drop_invalid_rows: bool = False
+    timezone_utc: bool = True
+    derive_transaction_direction: bool = True
