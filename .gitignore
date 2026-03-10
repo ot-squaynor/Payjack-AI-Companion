@@ -177,6 +177,7 @@ challenge/
 
 # WandB local sync data.
 wandb/
+test_vector_db/
 
 local/
 .env
