@@ -69,3 +69,83 @@ class NormalizationConfig:
     drop_invalid_rows: bool = False
     timezone_utc: bool = True
     derive_transaction_direction: bool = True
+
+##BRICK 2: Define normalization constants and regex patterns for standardizing currencies, categories, item types, and account types.
+# Currency normalization aliases.
+# Extend as you encounter real source-system variants.
+CURRENCY_ALIASES: Dict[str, str] = {
+    "ghs": "GHS",
+    "ghc": "GHS",
+    "cedi": "GHS",
+    "cedis": "GHS",
+    "ghana cedi": "GHS",
+    "ghana cedis": "GHS",
+    "gbp": "GBP",
+    "pound": "GBP",
+    "pounds": "GBP",
+    "sterling": "GBP",
+    "usd": "USD",
+    "dollar": "USD",
+    "dollars": "USD",
+    "eur": "EUR",
+    "euro": "EUR",
+    "euros": "EUR",
+}
+
+# Light category cleanup aliases.
+# This is only the baseline normalization layer.
+# Deeper domain taxonomy belongs in category_mapping.py.
+CATEGORY_ALIASES: Dict[str, str] = {
+    "groceries": "groceries",
+    "grocery": "groceries",
+    "supermarket": "groceries",
+    "transport": "transport",
+    "transportation": "transport",
+    "fuel": "transport",
+    "ride": "transport",
+    "rides": "transport",
+    "salary": "income",
+    "income": "income",
+    "wages": "income",
+    "bills": "bills",
+    "bill": "bills",
+    "utilities": "bills",
+    "shopping": "shopping",
+    "retail": "shopping",
+    "food": "food_and_drink",
+    "restaurant": "food_and_drink",
+    "restaurants": "food_and_drink",
+    "dining": "food_and_drink",
+    "transfer": "transfers",
+    "transfers": "transfers",
+    "bank transfer": "transfers",
+    "cash withdrawal": "cash",
+    "withdrawal": "cash",
+    "atm": "cash",
+}
+
+# Controlled item types for fees_and_limits normalization.
+ITEM_TYPE_ALIASES: Dict[str, str] = {
+    "fee": "fee",
+    "fees": "fee",
+    "charge": "fee",
+    "charges": "fee",
+    "limit": "limit",
+    "limits": "limit",
+    "threshold": "limit",
+}
+
+# Common account type cleanup.
+ACCOUNT_TYPE_ALIASES: Dict[str, str] = {
+    "current": "current",
+    "checking": "current",
+    "savings": "savings",
+    "saving": "savings",
+    "wallet": "wallet",
+    "credit": "credit",
+    "loan": "loan",
+}
+
+# Regex patterns used by helpers.
+MULTISPACE_RE = re.compile(r"\s+")
+NON_WORD_KEEP_BASIC_RE = re.compile(r"[^\w\s&/\-]")
