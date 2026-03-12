@@ -149,3 +149,184 @@ ACCOUNT_TYPE_ALIASES: Dict[str, str] = {
 # Regex patterns used by helpers.
 MULTISPACE_RE = re.compile(r"\s+")
 NON_WORD_KEEP_BASIC_RE = re.compile(r"[^\w\s&/\-]")
+
+##BRICK 3: Define helper functions for normalization steps, such as cleaning strings, normalizing currencies, merchants, categories, item types, account types, and deriving transaction direction.
+def _is_null_like(value: object) -> bool:
+    """
+    Return True for values that should be treated as missing.
+
+    Why:
+    - source exports often contain None, NaN, empty strings, or whitespace-only strings
+    """
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except Exception:
+        pass
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False
+
+
+def _clean_str(value: object) -> Optional[str]:
+    """
+    Convert a value into a cleaned string or None.
+
+    Cleaning rules:
+    - strip surrounding whitespace
+    - collapse repeated internal whitespace
+    - keep original character casing for now
+
+    Why:
+    - foundational helper used by merchant/category/account/product normalization
+    """
+    if _is_null_like(value):
+        return None
+
+    text = str(value).strip()
+    text = MULTISPACE_RE.sub(" ", text)
+
+    return text or None
+
+
+def _safe_upper(value: object) -> Optional[str]:
+    """
+    Clean a string and uppercase it.
+
+    Why:
+    - useful for currencies and compact code-like fields
+    """
+    text = _clean_str(value)
+    if text is None:
+        return None
+    return text.upper()
+
+
+def _normalize_currency(value: object, default_currency: Optional[str] = None) -> Optional[str]:
+    """
+    Normalize currency strings into canonical ISO-like codes.
+
+    Examples:
+    - 'ghc' -> 'GHS'
+    - 'ghana cedi' -> 'GHS'
+    - 'usd' -> 'USD'
+
+    Why:
+    - downstream spend summaries and balances depend on stable currency labels
+    """
+    text = _clean_str(value)
+
+    if text is None:
+        return default_currency.upper() if default_currency else None
+
+    key = text.lower()
+    if key in CURRENCY_ALIASES:
+        return CURRENCY_ALIASES[key]
+
+    # Fallback: if user already passed something like "GHS"
+    if len(text) in {3, 4, 5}:
+        return text.upper()
+
+    return default_currency.upper() if default_currency else text.upper()
+
+
+def _clean_merchant(value: object) -> Optional[str]:
+    """
+    Normalize merchant text into a cleaner display/search form.
+
+    Cleaning rules:
+    - strip whitespace
+    - remove noisy punctuation while preserving simple separators (& / -)
+    - collapse repeated spaces
+    - title-case the result for readability
+
+    Why:
+    - recurring detection and spend grouping work better with stable merchant labels
+    """
+    text = _clean_str(value)
+    if text is None:
+        return None
+
+    text = NON_WORD_KEEP_BASIC_RE.sub("", text)
+    text = MULTISPACE_RE.sub(" ", text).strip()
+
+    if not text:
+        return None
+
+    return text.title()
+
+
+def _normalize_category(value: object) -> Optional[str]:
+    """
+    Normalize free-text categories into stable baseline labels.
+
+    This is intentionally light-touch.
+    Rich domain mapping belongs in category_mapping.py.
+    """
+    text = _clean_str(value)
+    if text is None:
+        return None
+
+    key = text.lower()
+    key = key.replace("&", "and")
+    key = MULTISPACE_RE.sub(" ", key).strip()
+
+    return CATEGORY_ALIASES.get(key, key)
+
+
+def _normalize_item_type(value: object) -> Optional[str]:
+    """
+    Normalize fee/limit item types into a controlled set.
+
+    Why:
+    - status explanation and policy logic should not deal with many spelling variants
+    """
+    text = _clean_str(value)
+    if text is None:
+        return None
+
+    key = text.lower()
+    return ITEM_TYPE_ALIASES.get(key, key)
+
+
+def _normalize_account_type(value: object) -> Optional[str]:
+    """
+    Normalize account type labels into a small stable set.
+    """
+    text = _clean_str(value)
+    if text is None:
+        return None
+
+    key = text.lower()
+    return ACCOUNT_TYPE_ALIASES.get(key, key)
+
+
+def _derive_transaction_direction(amount: object) -> Optional[str]:
+    """
+    Infer debit/credit from the sign of the amount.
+
+    Convention:
+    - negative -> debit
+    - positive -> credit
+    - zero / invalid -> None
+
+    Why:
+    - useful for downstream summaries and explanation logic
+    """
+    if _is_null_like(amount):
+        return None
+
+    try:
+        amount_value = float(amount)
+    except (TypeError, ValueError):
+        return None
+
+    if amount_value < 0:
+        return "debit"
+    if amount_value > 0:
+        return "credit"
+    return None
+
+##BRICK 4:
