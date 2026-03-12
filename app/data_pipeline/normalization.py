@@ -329,4 +329,198 @@ def _derive_transaction_direction(amount: object) -> Optional[str]:
         return "credit"
     return None
 
-##BRICK 4:
+##BRICK 4: Define main normalization functions for transactions, accounts, fees/limits, products, and metadata, applying the helper functions and normalization rules defined above.
+def normalize_transactions(
+    df: pd.DataFrame,
+    config: NormalizationConfig,
+) -> pd.DataFrame:
+    """
+    Normalize transactions into a stable analytical/tool-ready form.
+
+    Outputs/behaviors:
+    - normalized currency codes
+    - cleaned merchant labels
+    - normalized category strings
+    - derived direction/date/month helper fields
+    """
+    out = df.copy()
+
+    if "currency" in out.columns:
+        out["currency"] = out["currency"].apply(
+            lambda x: _normalize_currency(x, default_currency=config.default_currency)
+        )
+
+    if "merchant" in out.columns:
+        out["merchant_clean"] = out["merchant"].apply(_clean_merchant)
+
+    if "category" in out.columns:
+        out["category"] = out["category"].apply(_normalize_category)
+
+    if "description" in out.columns:
+        out["description"] = out["description"].apply(_clean_str)
+
+    if "transaction_id" in out.columns:
+        out["transaction_id"] = out["transaction_id"].apply(_clean_str)
+
+    if "account_id" in out.columns:
+        out["account_id"] = out["account_id"].apply(_clean_str)
+
+    if "timestamp" in out.columns:
+        out["timestamp"] = pd.to_datetime(out["timestamp"], errors="coerce", utc=config.timezone_utc)
+        out["date"] = out["timestamp"].dt.date.astype("string")
+        out["month"] = out["timestamp"].dt.to_period("M").astype("string")
+
+    if "amount" in out.columns:
+        out["amount"] = pd.to_numeric(out["amount"], errors="coerce")
+
+    if config.derive_transaction_direction and "amount" in out.columns:
+        out["direction"] = out["amount"].apply(_derive_transaction_direction)
+
+    if config.drop_invalid_rows:
+        required = ["transaction_id", "account_id", "amount", "currency", "timestamp"]
+        present_required = [c for c in required if c in out.columns]
+        if present_required:
+            before = len(out)
+            out = out.dropna(subset=present_required)
+            dropped = before - len(out)
+            if dropped:
+                logger.info("Dropped %s invalid transaction rows during normalization", dropped)
+
+    return out
+
+
+def normalize_accounts(
+    df: pd.DataFrame,
+    config: NormalizationConfig,
+) -> pd.DataFrame:
+    """
+    Normalize account records for downstream lookup and joining.
+    """
+    out = df.copy()
+
+    if "account_id" in out.columns:
+        out["account_id"] = out["account_id"].apply(_clean_str)
+
+    if "account_name" in out.columns:
+        out["account_name"] = out["account_name"].apply(_clean_str)
+
+    if "account_type" in out.columns:
+        out["account_type"] = out["account_type"].apply(_normalize_account_type)
+
+    if "currency" in out.columns:
+        out["currency"] = out["currency"].apply(
+            lambda x: _normalize_currency(x, default_currency=config.default_currency)
+        )
+
+    if config.drop_invalid_rows:
+        required = ["account_id", "account_name"]
+        present_required = [c for c in required if c in out.columns]
+        if present_required:
+            before = len(out)
+            out = out.dropna(subset=present_required)
+            dropped = before - len(out)
+            if dropped:
+                logger.info("Dropped %s invalid account rows during normalization", dropped)
+
+    return out
+
+
+def normalize_fees_and_limits(
+    df: pd.DataFrame,
+    config: NormalizationConfig,
+) -> pd.DataFrame:
+    """
+    Normalize fee/limit tables for deterministic policy lookups.
+    """
+    out = df.copy()
+
+    if "item_id" in out.columns:
+        out["item_id"] = out["item_id"].apply(_clean_str)
+
+    if "item_type" in out.columns:
+        out["item_type"] = out["item_type"].apply(_normalize_item_type)
+
+    if "value" in out.columns:
+        out["value"] = pd.to_numeric(out["value"], errors="coerce")
+
+    if "unit" in out.columns:
+        out["unit"] = out["unit"].apply(_safe_upper)
+
+    if "notes" in out.columns:
+        out["notes"] = out["notes"].apply(_clean_str)
+
+    if config.drop_invalid_rows:
+        required = ["item_id", "item_type", "value"]
+        present_required = [c for c in required if c in out.columns]
+        if present_required:
+            before = len(out)
+            out = out.dropna(subset=present_required)
+            dropped = before - len(out)
+            if dropped:
+                logger.info("Dropped %s invalid fee/limit rows during normalization", dropped)
+
+    return out
+
+
+def normalize_products(
+    df: pd.DataFrame,
+    config: NormalizationConfig,
+) -> pd.DataFrame:
+    """
+    Normalize product records for future product/status explanations.
+    """
+    out = df.copy()
+
+    if "product_id" in out.columns:
+        out["product_id"] = out["product_id"].apply(_clean_str)
+
+    if "product_name" in out.columns:
+        out["product_name"] = out["product_name"].apply(_clean_str)
+
+    if "product_type" in out.columns:
+        out["product_type"] = out["product_type"].apply(_clean_str)
+        out["product_type"] = out["product_type"].str.lower()
+
+    if config.drop_invalid_rows:
+        required = ["product_id", "product_name"]
+        present_required = [c for c in required if c in out.columns]
+        if present_required:
+            before = len(out)
+            out = out.dropna(subset=present_required)
+            dropped = before - len(out)
+            if dropped:
+                logger.info("Dropped %s invalid product rows during normalization", dropped)
+
+    return out
+
+
+def normalize_metadata(
+    df: pd.DataFrame,
+    config: NormalizationConfig,
+) -> pd.DataFrame:
+    """
+    Normalize general metadata key-value rows.
+    """
+    out = df.copy()
+
+    if "key" in out.columns:
+        out["key"] = out["key"].apply(_clean_str)
+        out["key"] = out["key"].str.lower()
+
+    if "value" in out.columns:
+        out["value"] = out["value"].apply(_clean_str)
+
+    if "source" in out.columns:
+        out["source"] = out["source"].apply(_clean_str)
+
+    if config.drop_invalid_rows:
+        required = ["key", "value"]
+        present_required = [c for c in required if c in out.columns]
+        if present_required:
+            before = len(out)
+            out = out.dropna(subset=present_required)
+            dropped = before - len(out)
+            if dropped:
+                logger.info("Dropped %s invalid metadata rows during normalization", dropped)
+
+    return out
