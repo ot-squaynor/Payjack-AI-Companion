@@ -524,3 +524,49 @@ def normalize_metadata(
                 logger.info("Dropped %s invalid metadata rows during normalization", dropped)
 
     return out
+##BRICK 5: Define the main normalize_bundle function that applies the specific normalization functions to each dataset in the bundle, handling errors and returning the normalized bundle.
+def normalize_bundle(
+    bundle: Mapping[str, pd.DataFrame],
+    config: Optional[NormalizationConfig] = None,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Normalize all datasets in a loaded bundle.
+
+    This is the main public entrypoint for the normalization stage.
+
+    Args:
+        bundle:
+            Mapping of dataset name -> ingested DataFrame
+        config:
+            Optional normalization configuration. If omitted, defaults are used.
+
+    Returns:
+        Dict[str, pd.DataFrame] containing normalized datasets.
+
+    Raises:
+        NormalizationError:
+            If a required dataset-specific normalization step fails.
+    """
+    config = config or NormalizationConfig()
+    normalized: Dict[str, pd.DataFrame] = {}
+
+    try:
+        if "transactions" in bundle:
+            normalized["transactions"] = normalize_transactions(bundle["transactions"], config)
+
+        if "accounts" in bundle:
+            normalized["accounts"] = normalize_accounts(bundle["accounts"], config)
+
+        if "fees_and_limits" in bundle:
+            normalized["fees_and_limits"] = normalize_fees_and_limits(bundle["fees_and_limits"], config)
+
+        if "products" in bundle:
+            normalized["products"] = normalize_products(bundle["products"], config)
+
+        if "metadata" in bundle:
+            normalized["metadata"] = normalize_metadata(bundle["metadata"], config)
+
+    except Exception as e:
+        raise NormalizationError(f"Failed to normalize dataset bundle: {e}") from e
+
+    return normalized
