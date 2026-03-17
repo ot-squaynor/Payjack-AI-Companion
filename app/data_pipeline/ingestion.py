@@ -343,7 +343,149 @@ def _validate_source_config(source_config: DataSourceConfig) -> None:
 
     if mode == "s3" and not source_config.s3_bucket:
         raise IngestionError("S3 mode requires `s3_bucket` to be set in DataSourceConfig.")
-##BRICK 4: Ingestion function to load a raw dataset file into a DataFrame, with support for multiple formats and error handling.
+
+##BRICK 4: Core ingestion functions for listing files in local folders or S3 prefixes, reading file contents as bytes, and loading them into DataFrames, while applying the standardization and validation logic defined earlier.
+def list_local_files(folder: Path, recursive: bool = False) -> List[Path]:
+    """
+    Return supported local files under a dataset folder.
+
+    Args:
+        folder:
+            Local dataset root, e.g. data/raw/transactions
+        recursive:
+            If True, search nested subdirectories. This is important for
+            partitioned layouts like year/month/day.
+
+    Returns:
+        Deterministically sorted list of matching file paths.
+
+    Why:
+    - keeps local dev/test mode aligned with S3 behavior
+    - supports partitioned datasets without changing downstream logic
+    """
+    if not folder.exists() or not folder.is_dir():
+        return []
+
+    pattern = "**/*" if recursive else "*"
+    files = [
+        p
+        for p in folder.glob(pattern)
+        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS
+    ]
+
+    return sorted(files, key=lambda p: str(p).lower())
+
+
+def list_s3_keys(
+    bucket: str,
+    prefix: str,
+    recursive: bool = False,
+    s3_client=None,
+) -> List[str]:
+    """
+    List supported S3 object keys under a prefix.
+
+    Args:
+        bucket:
+            S3 bucket name.
+        prefix:
+            Dataset prefix, e.g. raw/transactions
+        recursive:
+            If False, only keep objects directly under the prefix.
+            If True, include nested partitioned keys like year/month/day.
+        s3_client:
+            Optional prebuilt boto3 client.
+
+    Returns:
+        Deterministically sorted list of S3 keys.
+
+    AWS calls:
+    - list_objects_v2 paginator
+
+    Why:
+    - S3 is now a real upstream source of truth
+    - transaction data may be partitioned deeply by date
+    """
+    client = s3_client or get_s3_client()
+    normalized_prefix = prefix.strip("/")
+
+    try:
+        paginator = client.get_paginator("list_objects_v2")
+        page_iterator = paginator.paginate(Bucket=bucket, Prefix=normalized_prefix)
+
+        keys: List[str] = []
+        for page in page_iterator:
+            contents = page.get("Contents", [])
+            for obj in contents:
+                key = obj["Key"]
+
+                # Skip pseudo-directory placeholders
+                if key.endswith("/"):
+                    continue
+
+                suffix = Path(key).suffix.lower()
+                if suffix not in SUPPORTED_EXTS:
+                    continue
+
+                if not recursive:
+                    relative = key[len(normalized_prefix):].lstrip("/") if normalized_prefix else key
+                    if "/" in relative:
+                        continue
+
+                keys.append(key)
+
+        return sorted(keys, key=lambda k: k.lower())
+
+    except (BotoCoreError, ClientError) as e:
+        raise IngestionError(
+            f"Failed to list S3 objects for s3://{bucket}/{normalized_prefix}: {e}"
+        ) from e
+
+
+def read_local_file_bytes(path: Path) -> bytes:
+    """
+    Read a local file as raw bytes.
+
+    Why:
+    - unifies local and S3 parsing through a shared bytes-based loader
+    """
+    try:
+        return path.read_bytes()
+    except OSError as e:
+        raise IngestionError(f"Failed to read local file {path}: {e}") from e
+
+
+def read_s3_object_bytes(bucket: str, key: str, s3_client=None) -> bytes:
+    """
+    Read an S3 object fully into memory as bytes.
+
+    Args:
+        bucket:
+            S3 bucket name.
+        key:
+            S3 object key.
+        s3_client:
+            Optional prebuilt boto3 client.
+
+    Returns:
+        Raw object bytes.
+
+    AWS calls:
+    - get_object
+
+    Why:
+    - lets downstream parsing be storage-agnostic
+    """
+    client = s3_client or get_s3_client()
+
+    try:
+        response = client.get_object(Bucket=bucket, Key=key)
+        body = response["Body"].read()
+        return body
+    except (BotoCoreError, ClientError, KeyError) as e:
+        raise IngestionError(f"Failed to read S3 object s3://{bucket}/{key}: {e}") from e
+
+###
 def load_table(path: Path) -> pd.DataFrame:
     """
     Load a raw dataset file into a DataFrame.
