@@ -786,40 +786,120 @@ def deduplicate_rows(
 
     return out
 
-####
-def ingest_dataset(folder: Path, spec: DatasetSpec) -> pd.DataFrame:
+##BRICK 7: The main ingestion function that ties everything together, applying the configuration and specifications to load datasets from the specified source, standardize and validate them, and return a clean DataFrame for downstream processing.
+def ingest_dataset(
+    spec: DatasetSpec,
+    source_config: DataSourceConfig,
+    s3_client=None,
+) -> pd.DataFrame:
     """
-    Load + standardize + coerce + validate a single dataset from its folder.
+    Ingest one logical dataset from either local storage or S3.
 
-    Folder convention:
-        data/raw/<dataset_name>/
-            <export>.csv|json|xlsx|jsonl
+    Flow:
+    - validate source configuration
+    - discover matching files/objects
+    - load one or many tables
+    - standardize column names
+    - coerce types
+    - validate required columns
+    - drop fully empty rows
+    - deduplicate where configured
 
-    Why:
-    - provides a single consistent ingestion operation for all datasets
+    Args:
+        spec:
+            Dataset contract and loading behavior.
+        source_config:
+            Storage location config (local or s3).
+        s3_client:
+            Optional injected boto3 S3 client for reuse or testing.
+
+    Returns:
+        Canonical ingested DataFrame for the dataset.
     """
-    file_path = discover_latest_file(folder)
-    if file_path is None:
-        raise IngestionError(f"[{spec.name}] No supported files found in {folder}")
+    _validate_source_config(source_config)
+    mode = source_config.mode.strip().lower()
 
-    logger.info("Ingesting '%s' from %s", spec.name, file_path)
+    source_items: List[Tuple[str, bytes]] = []
 
-    df = load_table(file_path)
+    if mode == "local":
+        dataset_root = _resolve_local_dataset_root(source_config, spec.name)
+        file_paths = list_local_files(dataset_root, recursive=spec.recursive)
+
+        if not file_paths:
+            raise IngestionError(f"[{spec.name}] No supported local files found in {dataset_root}")
+
+        if not spec.multi_file:
+            file_paths = file_paths[:1]
+
+        for path in file_paths:
+            logger.info("Reading local dataset source for '%s': %s", spec.name, path)
+            file_bytes = read_local_file_bytes(path)
+            source_items.append((str(path), file_bytes))
+
+    elif mode == "s3":
+        bucket = source_config.s3_bucket
+        if not bucket:
+            raise IngestionError(f"[{spec.name}] S3 mode requires a bucket name")
+
+        dataset_prefix = _resolve_s3_dataset_prefix(source_config, spec.name)
+        keys = list_s3_keys(
+            bucket=bucket,
+            prefix=dataset_prefix,
+            recursive=spec.recursive,
+            s3_client=s3_client,
+        )
+
+        if not keys:
+            raise IngestionError(f"[{spec.name}] No supported S3 objects found under s3://{bucket}/{dataset_prefix}")
+
+        if not spec.multi_file:
+            keys = keys[:1]
+
+        for key in keys:
+            logger.info("Reading S3 dataset source for '%s': s3://%s/%s", spec.name, bucket, key)
+            file_bytes = read_s3_object_bytes(bucket=bucket, key=key, s3_client=s3_client)
+            source_items.append((key, file_bytes))
+
+    else:
+        raise IngestionError(f"[{spec.name}] Unsupported source mode '{source_config.mode}'")
+
+    # Parse source(s)
+    if spec.multi_file:
+        df = load_many_tables(source_items)
+    else:
+        source_name, file_bytes = source_items[0]
+        suffix = Path(source_name).suffix.lower()
+        df = load_table_from_bytes(file_bytes, suffix=suffix)
+        df = df.copy()
+        df["_source_name"] = source_name
+
+    # Canonicalize schema before validation
     df = standardize_columns(df)
 
-    # Coerce types conservatively based on spec hints
+    # Conservative type coercion
     df = _coerce_dates(df, spec.date_columns)
     df = _coerce_numeric(df, spec.numeric_columns)
     df = _coerce_strings(df, spec.string_columns)
 
+    # Minimum schema enforcement
     validate_required_columns(df, spec.required_columns, dataset_name=spec.name)
 
-    # Minimal cleanup: remove completely empty rows
+    # Minimal cleanup
     df = df.dropna(how="all")
+
+    # Dedupe if configured
+    df = deduplicate_rows(df, subset=spec.dedupe_key)
+
+    logger.info(
+        "Ingested dataset '%s' with %s rows and %s columns",
+        spec.name,
+        len(df),
+        len(df.columns),
+    )
 
     return df
 
-
+##BR
 def load_raw_bundle(
     raw_root: Path | str = Path("data/raw"),
     strict: bool = True,
