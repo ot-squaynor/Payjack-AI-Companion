@@ -486,98 +486,211 @@ def read_s3_object_bytes(bucket: str, key: str, s3_client=None) -> bytes:
         raise IngestionError(f"Failed to read S3 object s3://{bucket}/{key}: {e}") from e
 
 ###
-def load_table(path: Path) -> pd.DataFrame:
+# def load_table(path: Path) -> pd.DataFrame:
+#     """
+#     Load a raw dataset file into a DataFrame.
+
+#     Supported:
+#     - CSV
+#     - XLS/XLSX (first sheet)
+#     - JSON (list[dict] or dict-wrapped list)
+#     - JSONL (one JSON object per line)
+
+#     Why:
+#     - keeps file-format complexity out of business logic
+#     - makes ingestion easy to unit test
+#     """
+#     if not path.exists():
+#         raise IngestionError(f"Missing file: {path}")
+
+#     ext = path.suffix.lower()
+#     if ext not in SUPPORTED_EXTS:
+#         raise IngestionError(
+#             f"Unsupported file type '{ext}' for {path}. Supported: {sorted(SUPPORTED_EXTS)}"
+#         )
+
+#     try:
+#         if ext == ".csv":
+#             # Try BOM-friendly encoding first (common with Excel exports).
+#             try:
+#                 return pd.read_csv(path, encoding="utf-8-sig")
+#             except UnicodeDecodeError:
+#                 return pd.read_csv(path, encoding="utf-8")
+
+#         if ext in {".xlsx", ".xls"}:
+#             return pd.read_excel(path, sheet_name=0)
+
+#         if ext == ".json":
+#             with path.open("r", encoding="utf-8") as f:
+#                 obj = json.load(f)
+
+#             if isinstance(obj, list):
+#                 return pd.DataFrame(obj)
+
+#             if isinstance(obj, dict):
+#                 # Common “wrapped array” patterns
+#                 for key in ("data", "items", "records", "rows"):
+#                     if key in obj and isinstance(obj[key], list):
+#                         return pd.DataFrame(obj[key])
+
+#                 # Fallback: treat dict as a single record
+#                 return pd.DataFrame([obj])
+
+#             raise IngestionError(f"Unsupported JSON structure in {path}")
+
+#         if ext == ".jsonl":
+#             rows = []
+#             with path.open("r", encoding="utf-8") as f:
+#                 for i, line in enumerate(f, start=1):
+#                     line = line.strip()
+#                     if not line:
+#                         continue
+#                     try:
+#                         rows.append(json.loads(line))
+#                     except json.JSONDecodeError as e:
+#                         raise IngestionError(f"Invalid JSON on line {i} in {path}: {e}") from e
+#             return pd.DataFrame(rows)
+
+#         # Should never hit this due to SUPPORTED_EXTS check above
+#         raise IngestionError(f"Unhandled file type '{ext}' for {path}")
+
+#     except IngestionError:
+#         raise
+#     except Exception as e:
+#         raise IngestionError(f"Failed to load {path}: {e}") from e
+
+
+# def discover_latest_file(folder: Path) -> Optional[Path]:
+#     """
+#     Pick the most recently modified supported file within a dataset folder.
+
+#     Why:
+#     - early-stage pipelines often drop a single export file into the folder
+#     - reduces configuration friction while iterating
+#     """
+#     if not folder.exists() or not folder.is_dir():
+#         return None
+
+#     candidates = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS]
+#     if not candidates:
+#         return None
+
+#     return max(candidates, key=lambda p: p.stat().st_mtime)
+
+##BRICK 5: Shared parsing logic for loading raw bytes into DataFrames, which can be used by both local file ingestion and S3 object ingestion, to keep the core parsing logic consistent and testable regardless of the source.
+def load_table_from_bytes(file_bytes: bytes, suffix: str) -> pd.DataFrame:
     """
-    Load a raw dataset file into a DataFrame.
+    Parse raw bytes into a pandas DataFrame based on file extension.
 
     Supported:
-    - CSV
-    - XLS/XLSX (first sheet)
-    - JSON (list[dict] or dict-wrapped list)
-    - JSONL (one JSON object per line)
+    - .csv
+    - .xlsx / .xls
+    - .json
+    - .jsonl
 
     Why:
-    - keeps file-format complexity out of business logic
-    - makes ingestion easy to unit test
+    - keeps parsing logic shared between local files and S3 objects
+    - makes ingestion storage-agnostic once bytes are loaded
     """
-    if not path.exists():
-        raise IngestionError(f"Missing file: {path}")
-
-    ext = path.suffix.lower()
+    ext = suffix.lower().strip()
     if ext not in SUPPORTED_EXTS:
-        raise IngestionError(
-            f"Unsupported file type '{ext}' for {path}. Supported: {sorted(SUPPORTED_EXTS)}"
-        )
+        raise IngestionError(f"Unsupported file type '{ext}'. Supported: {sorted(SUPPORTED_EXTS)}")
 
     try:
         if ext == ".csv":
-            # Try BOM-friendly encoding first (common with Excel exports).
             try:
-                return pd.read_csv(path, encoding="utf-8-sig")
+                return pd.read_csv(BytesIO(file_bytes), encoding="utf-8-sig")
             except UnicodeDecodeError:
-                return pd.read_csv(path, encoding="utf-8")
+                return pd.read_csv(BytesIO(file_bytes), encoding="utf-8")
 
         if ext in {".xlsx", ".xls"}:
-            return pd.read_excel(path, sheet_name=0)
+            return pd.read_excel(BytesIO(file_bytes), sheet_name=0)
 
         if ext == ".json":
-            with path.open("r", encoding="utf-8") as f:
-                obj = json.load(f)
+            try:
+                obj = json.loads(file_bytes.decode("utf-8"))
+            except UnicodeDecodeError:
+                obj = json.loads(file_bytes.decode("utf-8-sig"))
 
             if isinstance(obj, list):
                 return pd.DataFrame(obj)
 
             if isinstance(obj, dict):
-                # Common “wrapped array” patterns
-                for key in ("data", "items", "records", "rows"):
+                for key in ("data", "items", "records", "rows", "transactions", "accounts"):
                     if key in obj and isinstance(obj[key], list):
                         return pd.DataFrame(obj[key])
 
-                # Fallback: treat dict as a single record
                 return pd.DataFrame([obj])
 
-            raise IngestionError(f"Unsupported JSON structure in {path}")
+            raise IngestionError("Unsupported JSON structure")
 
         if ext == ".jsonl":
+            try:
+                text = file_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                text = file_bytes.decode("utf-8-sig")
+
             rows = []
-            with path.open("r", encoding="utf-8") as f:
-                for i, line in enumerate(f, start=1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        rows.append(json.loads(line))
-                    except json.JSONDecodeError as e:
-                        raise IngestionError(f"Invalid JSON on line {i} in {path}: {e}") from e
+            for i, line in enumerate(text.splitlines(), start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    raise IngestionError(f"Invalid JSON on line {i}: {e}") from e
+
             return pd.DataFrame(rows)
 
-        # Should never hit this due to SUPPORTED_EXTS check above
-        raise IngestionError(f"Unhandled file type '{ext}' for {path}")
+        raise IngestionError(f"Unhandled file type '{ext}'")
 
     except IngestionError:
         raise
     except Exception as e:
-        raise IngestionError(f"Failed to load {path}: {e}") from e
+        raise IngestionError(f"Failed to parse bytes as '{ext}': {e}") from e
 
 
-def discover_latest_file(folder: Path) -> Optional[Path]:
+def load_many_tables(
+    sources: Iterable[Tuple[str, bytes]],
+) -> pd.DataFrame:
     """
-    Pick the most recently modified supported file within a dataset folder.
+    Load and concatenate many tabular sources into a single DataFrame.
+
+    Args:
+        sources:
+            Iterable of (source_name, file_bytes), where source_name is used
+            to infer the suffix and improve error messages/logging.
+
+    Behavior:
+    - Parses each source independently
+    - Adds a `_source_name` lineage column for traceability
+    - Concatenates all parsed tables row-wise
 
     Why:
-    - early-stage pipelines often drop a single export file into the folder
-    - reduces configuration friction while iterating
+    - partitioned daily/monthly/yearly transaction exports need one combined table
+    - multi-file datasets should look like one logical dataset downstream
     """
-    if not folder.exists() or not folder.is_dir():
-        return None
+    frames: List[pd.DataFrame] = []
 
-    candidates = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_EXTS]
-    if not candidates:
-        return None
+    for source_name, file_bytes in sources:
+        suffix = Path(source_name).suffix.lower()
+        if suffix not in SUPPORTED_EXTS:
+            logger.debug("Skipping unsupported source during multi-load: %s", source_name)
+            continue
 
-    return max(candidates, key=lambda p: p.stat().st_mtime)
+        logger.info("Loading tabular source: %s", source_name)
+        df = load_table_from_bytes(file_bytes, suffix=suffix)
+        df = df.copy()
+        df["_source_name"] = source_name
+        frames.append(df)
 
-##BRICK 5: Type coercion and validation functions to ensure that the ingested DataFrame has the expected types for date, numeric, and string columns, and that required columns are present.
+    if not frames:
+        raise IngestionError("No supported tabular sources were available to load")
+
+    # sort=False preserves all columns across heterogeneous batches
+    return pd.concat(frames, ignore_index=True, sort=False)
+
+##BRICK 6
 def _coerce_dates(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
     """
     Coerce selected columns to UTC datetime.
@@ -606,10 +719,11 @@ def _coerce_numeric(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
     out = df.copy()
     for c in cols:
         if c in out.columns:
-            s = out[c].astype(str).str.replace(",", "", regex=False)
-            s = s.str.replace("£", "", regex=False).str.replace("$", "", regex=False)
-            out[c] = pd.to_numeric(s, errors="coerce")
+            series = out[c].astype(str).str.replace(",", "", regex=False)
+            series = series.str.replace("£", "", regex=False).str.replace("$", "", regex=False)
+            out[c] = pd.to_numeric(series, errors="coerce")
     return out
+
 
 
 def _coerce_strings(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
@@ -639,8 +753,40 @@ def validate_required_columns(df: pd.DataFrame, required: Iterable[str], dataset
             f"[{dataset_name}] Missing required columns: {missing}. "
             f"Present columns: {sorted(df.columns.tolist())}"
         )
+def deduplicate_rows(
+    df: pd.DataFrame,
+    subset: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Drop duplicate rows using an optional key column.
 
+    Args:
+        df:
+            Input DataFrame.
+        subset:
+            Column name to use as the dedupe key. If None, returns the DataFrame unchanged.
 
+    Why:
+    - partitioned exports may overlap across re-runs or partial backfills
+    - transaction_id/account_id/product_id/item_id are natural first-pass dedupe keys
+    """
+    if not subset:
+        return df
+
+    if subset not in df.columns:
+        logger.warning("Dedupe key '%s' not found in columns; skipping dedupe", subset)
+        return df
+
+    before = len(df)
+    out = df.drop_duplicates(subset=[subset], keep="first")
+    dropped = before - len(out)
+
+    if dropped:
+        logger.info("Dropped %s duplicate rows using dedupe key '%s'", dropped, subset)
+
+    return out
+
+####
 def ingest_dataset(folder: Path, spec: DatasetSpec) -> pd.DataFrame:
     """
     Load + standardize + coerce + validate a single dataset from its folder.
@@ -673,7 +819,7 @@ def ingest_dataset(folder: Path, spec: DatasetSpec) -> pd.DataFrame:
 
     return df
 
-##BRICK 6
+
 def load_raw_bundle(
     raw_root: Path | str = Path("data/raw"),
     strict: bool = True,
