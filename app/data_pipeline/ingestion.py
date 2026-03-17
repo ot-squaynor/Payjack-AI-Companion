@@ -243,8 +243,21 @@ def _specs() -> Dict[str, DatasetSpec]:
         ),
     }
 
-##BRICK 3: Constants and helper functions for column standardization, including a mapping of common “messy” header variants to canonical names.
+##BRICK 3: Utility functions for S3 client creation, column name standardization, file discovery, and path resolution, to keep the main ingestion logic clean and focused on loading and validating datasets.
+def get_s3_client():
+    """
+    Create and return a boto3 S3 client.
 
+    Why:
+    - isolates AWS client creation in one place
+    - makes later mocking/testing easier
+    - avoids scattering boto3 construction across functions
+    """
+    try:
+        return boto3.client("s3")
+    except (BotoCoreError, ClientError) as e:
+        raise IngestionError(f"Failed to create S3 client: {e}") from e
+    
 def standardize_column_name(col: str) -> str:
     """
     Convert a raw column label into a canonical column label.
@@ -280,7 +293,56 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out.columns = [standardize_column_name(c) for c in out.columns]
     return out
+def _join_s3_prefix(*parts: str) -> str:
+    """
+    Join S3 prefix parts safely without introducing duplicate slashes.
 
+    Example:
+        _join_s3_prefix("raw", "transactions") -> "raw/transactions"
+    """
+    cleaned = [str(p).strip("/").strip() for p in parts if str(p).strip("/").strip()]
+    return "/".join(cleaned)
+
+
+def _resolve_local_dataset_root(source_config: DataSourceConfig, dataset_name: str) -> Path:
+    """
+    Resolve the local root folder for a dataset.
+
+    Example:
+        local_root=data/raw, dataset=transactions
+        -> data/raw/transactions
+    """
+    return Path(source_config.local_root) / dataset_name
+
+
+def _resolve_s3_dataset_prefix(source_config: DataSourceConfig, dataset_name: str) -> str:
+    """
+    Resolve the S3 prefix for a dataset.
+
+    Example:
+        s3_root_prefix='raw'
+        dataset='transactions'
+        -> 'raw/transactions'
+    """
+    return _join_s3_prefix(source_config.s3_root_prefix, dataset_name)
+
+
+def _validate_source_config(source_config: DataSourceConfig) -> None:
+    """
+    Validate source configuration before attempting ingestion.
+
+    Why:
+    - fail early with a clear message if the source mode is malformed
+    """
+    mode = source_config.mode.strip().lower()
+
+    if mode not in {"local", "s3"}:
+        raise IngestionError(
+            f"Unsupported source mode '{source_config.mode}'. Expected 'local' or 's3'."
+        )
+
+    if mode == "s3" and not source_config.s3_bucket:
+        raise IngestionError("S3 mode requires `s3_bucket` to be set in DataSourceConfig.")
 ##BRICK 4: Ingestion function to load a raw dataset file into a DataFrame, with support for multiple formats and error handling.
 def load_table(path: Path) -> pd.DataFrame:
     """
