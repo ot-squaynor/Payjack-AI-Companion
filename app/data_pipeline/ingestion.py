@@ -899,30 +899,34 @@ def ingest_dataset(
 
     return df
 
-##BR
+##BRICK 8: A higher-level function to load all datasets defined in the specifications, applying the ingestion logic to each and returning a bundle of DataFrames, along with a utility to write these intermediate results to disk for reproducibility and faster iteration.
 def load_raw_bundle(
-    raw_root: Path | str = Path("data/raw"),
+    source_config: DataSourceConfig,
     strict: bool = True,
+    s3_client=None,
 ) -> Dict[str, pd.DataFrame]:
     """
     Load all datasets defined in `_specs()` into a consistent bundle.
 
     Args:
-        raw_root: root directory containing per-dataset subfolders
+        source_config:
+            Local or S3 source configuration.
         strict:
-            - True: raise on any missing/invalid dataset (best for CI, production-like runs)
-            - False: skip datasets that fail to load (best for early local iteration)
+            - True: raise on any dataset failure
+            - False: skip failed datasets and continue
+        s3_client:
+            Optional injected boto3 S3 client.
 
     Returns:
-        dict mapping dataset_name -> DataFrame
+        Dict[str, pd.DataFrame] mapping dataset name -> ingested DataFrame.
     """
-    raw_root = Path(raw_root)
+    _validate_source_config(source_config)
+
     bundle: Dict[str, pd.DataFrame] = {}
 
     for name, spec in _specs().items():
-        folder = raw_root / name
         try:
-            bundle[name] = ingest_dataset(folder, spec)
+            bundle[name] = ingest_dataset(spec=spec, source_config=source_config, s3_client=s3_client)
         except IngestionError as e:
             if strict:
                 raise
@@ -937,20 +941,17 @@ def write_intermediate(
     fmt: str = "parquet",
 ) -> Dict[str, Path]:
     """
-    Persist ingestion outputs as intermediate artifacts.
+    Persist ingestion outputs as local intermediate artifacts.
 
     Why:
-    - reproducibility (same inputs -> same intermediate files)
-    - speed (downstream stages can start from processed files)
-    - clean seam: ingestion boundary vs normalization/business logic
+    - reproducibility
+    - faster downstream iteration
+    - clean seam between ingestion and normalization
 
     Supported formats:
-    - parquet (recommended)
+    - parquet
     - csv
     - jsonl
-
-    Returns:
-        dict mapping dataset_name -> written file path
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -977,12 +978,13 @@ def write_intermediate(
 
 
 if __name__ == "__main__":
-    # Optional: allows quick manual runs like:
-    #   python -m app.data_pipeline.ingestion
     logging.basicConfig(level=logging.INFO)
 
-    bundle = load_raw_bundle(Path("data/raw"), strict=False)
-    paths = write_intermediate(bundle, Path("data/processed"), fmt="parquet")
+    # Default local run for quick development usage.
+    source = DataSourceConfig(mode="local", local_root=Path("data/raw"))
 
-    logger.info("Wrote ingestion intermediates: %s", {k: str(v) for k, v in paths.items()})
+    bundle = load_raw_bundle(source_config=source, strict=False)
+    written = write_intermediate(bundle=bundle, out_dir=Path("data/processed"), fmt="parquet")
+
+    logger.info("Wrote ingestion intermediates: %s", {k: str(v) for k, v in written.items()})
 # Needs a little more work to be a full standalone script (e.g., command-line args for raw/processed paths, format), but this is the core logic for ingestion.
