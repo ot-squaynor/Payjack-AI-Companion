@@ -17,16 +17,40 @@ Goal:
 This module intentionally does NOT apply business rules (that's normalization).
 """
 ##BRICK 1: Imports and configuration, including logging setup and constants for supported file types and column aliases.
+"""
+S3-aware ingestion layer for raw structured datasets.
+
+Responsibilities:
+- Load raw dataset files from either:
+    1) local filesystem
+    2) S3 bucket + prefix
+- Support partitioned datasets (e.g. transactions by year/month/day)
+- Parse CSV / XLSX / JSON / JSONL into pandas DataFrames
+- Standardize column names into canonical internal names
+- Apply light type coercion (dates, numerics, strings)
+- Validate minimum required columns
+- Concatenate multi-file datasets
+- Deduplicate rows where configured
+- Return a consistent bundle for downstream stages
+
+Non-goals:
+- No business normalization logic (normalization.py)
+- No advanced integrity enforcement (quality_checks.py)
+- No LLM/orchestrator/tool logic
+"""
 #IMPORTS:
 from __future__ import annotations
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, Mapping, Optional, Tuple, Iterable # for type hints
-import json
-import logging # Ingestion needs strong observability: “what file did I load”, “why did it fail”.
-import os
-import pandas as pd # pandas is a common choice for tabular data manipulation, but we could swap in something else if needed.
 
+import json
+import logging
+from dataclasses import dataclass
+from io import BytesIO
+from pathlib import Path
+from typing import Dict, Iterable, List, Mapping, Optional, Tuple
+
+import boto3
+import pandas as pd
+from botocore.exceptions import BotoCoreError, ClientError
 # #CONFIG:
 # RAW_DATA_DIR = Path("data/raw") # Base directory for raw datasets. In a real system, this might be an S3 bucket or database connection string.
 # # Set up logging
@@ -50,22 +74,57 @@ class IngestionError(RuntimeError):
     - keeps tracebacks clean and failure reasons explicit
     """
     pass
+@dataclass(frozen=True)
+class DataSourceConfig:
+    """
+    Describes where raw datasets should be loaded from.
 
-##BRICK 2:Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
+    mode:
+        - "local": read from local filesystem under local_root
+        - "s3": read from S3 bucket + optional root prefix
+
+    Examples:
+        local:
+            DataSourceConfig(mode="local", local_root=Path("data/raw"))
+
+        s3:
+            DataSourceConfig(
+                mode="s3",
+                s3_bucket="fidelity-raw-data",
+                s3_root_prefix="raw/"
+            )
+    """
+    mode: str = "local"
+    local_root: Path = Path("data/raw")
+    s3_bucket: Optional[str] = None
+    s3_root_prefix: str = ""
 @dataclass(frozen=True)
 class DatasetSpec:
     """
-    Minimal ingestion contract for a dataset.
+    Describes the ingestion contract and loading behavior for one dataset.
 
-    Keep `required_columns` intentionally small:
-    - ingestion should accept messy but usable exports
-    - stricter constraints belong in `quality_checks.py`
+    required_columns:
+        Minimum columns that must exist after column standardization.
+
+    recursive:
+        Whether nested directories / prefixes should be searched.
+
+    multi_file:
+        Whether all matched files should be loaded and concatenated.
+
+    dedupe_key:
+        Optional subset column used to drop duplicate rows after load.
+        Useful for partitioned transaction exports.
     """
     name: str
     required_columns: Tuple[str, ...]
     date_columns: Tuple[str, ...] = ()
     numeric_columns: Tuple[str, ...] = ()
     string_columns: Tuple[str, ...] = ()
+    recursive: bool = False
+    multi_file: bool = False
+    dedupe_key: Optional[str] = None    
+##BRICK 2:Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
 
 
 def _specs() -> Dict[str, DatasetSpec]:
@@ -83,6 +142,9 @@ def _specs() -> Dict[str, DatasetSpec]:
             date_columns=("timestamp",),
             numeric_columns=("amount",),
             string_columns=("transaction_id", "account_id", "currency", "merchant", "category", "description"),
+            recursive=True,
+            multi_file=True,
+            dedupe_key="transaction_id",
         ),
         "accounts": DatasetSpec(
             name="accounts",
