@@ -124,57 +124,13 @@ class DatasetSpec:
     recursive: bool = False
     multi_file: bool = False
     dedupe_key: Optional[str] = None    
-##BRICK 2:Data class to define the expected structure of each dataset. This serves as a contract for what the ingestion function should produce.
+##BRICK 2: Dataset specifications for each expected dataset, including required columns, type hints for coercion, and loading behavior (e.g., recursive search, multi-file concatenation, deduplication keys).
 
-
-def _specs() -> Dict[str, DatasetSpec]:
-    """
-    Single source of truth for ingestion expectations.
-
-    Notes:
-    - These are canonical *post-standardization* names.
-    - Expand gradually as your real exports stabilize.
-    """
-    return {
-        "transactions": DatasetSpec(
-            name="transactions",
-            required_columns=("transaction_id", "account_id", "amount", "currency", "timestamp"),
-            date_columns=("timestamp",),
-            numeric_columns=("amount",),
-            string_columns=("transaction_id", "account_id", "currency", "merchant", "category", "description"),
-            recursive=True,
-            multi_file=True,
-            dedupe_key="transaction_id",
-        ),
-        "accounts": DatasetSpec(
-            name="accounts",
-            required_columns=("account_id", "account_name"),
-            string_columns=("account_id", "account_name", "account_type", "currency"),
-        ),
-        "fees_and_limits": DatasetSpec(
-            name="fees_and_limits",
-            required_columns=("item_id", "item_type", "value"),
-            numeric_columns=("value",),
-            string_columns=("item_id", "item_type", "unit", "notes"),
-        ),
-        "products": DatasetSpec(
-            name="products",
-            required_columns=("product_id", "product_name"),
-            string_columns=("product_id", "product_name", "product_type"),
-        ),
-        "metadata": DatasetSpec(
-            name="metadata",
-            required_columns=("key", "value"),
-            string_columns=("key", "value", "source"),
-        ),
-    }
-
-##BRICK 3: Constants and helper functions for column standardization, including a mapping of common “messy” header variants to canonical names.
-# Supported raw file extensions for ingestion
+# Supported raw file extensions for structured ingestion.
 SUPPORTED_EXTS = {".json", ".jsonl", ".csv", ".xlsx", ".xls"}
 
-# Maps common “messy” headers -> canonical headers.
-# Extend this over time as you see real export variants.
+# Canonical column aliases.
+# These map common raw/exported header variants -> stable internal names.
 COLUMN_ALIASES: Dict[str, str] = {
     # Transaction identifiers
     "id": "transaction_id",
@@ -193,13 +149,13 @@ COLUMN_ALIASES: Dict[str, str] = {
     "created_at": "timestamp",
     "timestamp": "timestamp",
 
-    # Money
+    # Monetary values
     "amt": "amount",
     "amount": "amount",
     "ccy": "currency",
     "currency": "currency",
 
-    # Descriptors
+    # Textual descriptors
     "merchantname": "merchant",
     "merchant": "merchant",
     "narration": "description",
@@ -209,14 +165,18 @@ COLUMN_ALIASES: Dict[str, str] = {
     # Accounts
     "accountname": "account_name",
     "account_name": "account_name",
+    "accounttype": "account_type",
+    "account_type": "account_type",
 
     # Products
     "productid": "product_id",
     "product_id": "product_id",
     "productname": "product_name",
     "product_name": "product_name",
+    "producttype": "product_type",
+    "product_type": "product_type",
 
-    # Fees/limits/metadata style tables
+    # Fees / limits / metadata
     "type": "item_type",
     "item_type": "item_type",
     "value": "value",
@@ -224,8 +184,66 @@ COLUMN_ALIASES: Dict[str, str] = {
     "notes": "notes",
     "key": "key",
     "val": "value",
+    "source": "source",
 }
 
+def _specs() -> Dict[str, DatasetSpec]:
+    """
+    Central ingestion contract registry.
+
+    Notes:
+    - transactions are configured for recursive, multi-file loading
+      because they may be partitioned by year/month/day in S3 or locally.
+    - other datasets are left flexible enough to support either single-file
+      or batched exports later if needed.
+    """
+    return {
+        "transactions": DatasetSpec(
+            name="transactions",
+            required_columns=("transaction_id", "account_id", "amount", "currency", "timestamp"),
+            date_columns=("timestamp",),
+            numeric_columns=("amount",),
+            string_columns=("transaction_id", "account_id", "currency", "merchant", "category", "description"),
+            recursive=True,
+            multi_file=True,
+            dedupe_key="transaction_id",
+        ),
+        "accounts": DatasetSpec(
+            name="accounts",
+            required_columns=("account_id", "account_name"),
+            string_columns=("account_id", "account_name", "account_type", "currency"),
+            recursive=True,
+            multi_file=True,
+            dedupe_key="account_id",
+        ),
+        "fees_and_limits": DatasetSpec(
+            name="fees_and_limits",
+            required_columns=("item_id", "item_type", "value"),
+            numeric_columns=("value",),
+            string_columns=("item_id", "item_type", "unit", "notes"),
+            recursive=True,
+            multi_file=True,
+            dedupe_key="item_id",
+        ),
+        "products": DatasetSpec(
+            name="products",
+            required_columns=("product_id", "product_name"),
+            string_columns=("product_id", "product_name", "product_type"),
+            recursive=True,
+            multi_file=True,
+            dedupe_key="product_id",
+        ),
+        "metadata": DatasetSpec(
+            name="metadata",
+            required_columns=("key", "value"),
+            string_columns=("key", "value", "source"),
+            recursive=True,
+            multi_file=True,
+            dedupe_key=None,  # metadata keys may legitimately repeat across sources
+        ),
+    }
+
+##BRICK 3: Constants and helper functions for column standardization, including a mapping of common “messy” header variants to canonical names.
 
 def standardize_column_name(col: str) -> str:
     """
