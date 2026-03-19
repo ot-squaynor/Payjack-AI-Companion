@@ -476,6 +476,40 @@ def resolve_category_for_row(
         config.default_subcategory,
         "default_fallback",
     )
-##BRICK 8: 
 
+##BRICK 8: 
+def map_categories(
+    df: pd.DataFrame,
+    config: CategoryMappingConfig | None = None,
+) -> pd.DataFrame:
+    """Map normalized transaction data into the canonical business taxonomy."""
+    resolved_config = config or build_default_category_mapping_config()
+
+    validate_category_mapping_config(resolved_config)
+    validate_category_mapping_inputs(df)
+
+    mapped_df = apply_alias_maps(df=df, config=resolved_config).copy()
+
+    resolutions = mapped_df.apply(
+        lambda row: resolve_category_for_row(
+            merchant_mapped=row[COL_MERCHANT_MAPPED],
+            category_mapped=row[COL_CATEGORY_MAPPED],
+            direction_value=row[COL_DIRECTION],
+            config=resolved_config,
+        ),
+        axis=1,
+        result_type="expand",
+    )
+
+    resolutions.columns = [
+        COL_CATEGORY_MAPPED,
+        COL_SUBCATEGORY_MAPPED,
+        COL_CATEGORY_MAPPING_SOURCE,
+    ]
+
+    mapped_df[COL_CATEGORY_MAPPED] = resolutions[COL_CATEGORY_MAPPED]
+    mapped_df[COL_SUBCATEGORY_MAPPED] = resolutions[COL_SUBCATEGORY_MAPPED]
+    mapped_df[COL_CATEGORY_MAPPING_SOURCE] = resolutions[COL_CATEGORY_MAPPING_SOURCE]
+
+    return mapped_df
 ##BRICK 9: 
