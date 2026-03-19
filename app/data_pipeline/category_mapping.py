@@ -333,7 +333,74 @@ def validate_category_mapping_inputs(df: pd.DataFrame) -> None:
 
     if df.empty:
         logger.warning("Category mapping received an empty dataframe.")
-##BRICK 5:
+
+##BRICK 5: Core logic for normalizing candidate values and evaluating whether a transaction row matches a given mapping rule
+def normalize_mapping_value(value: object) -> str:
+    """Normalize a candidate scalar value for deterministic rule matching."""
+    if value is None:
+        return ""
+
+    if pd.isna(value):
+        return ""
+
+    normalized = str(value).strip().lower()
+    return normalized
+
+
+def _matches_value(match_type: str, candidate_value: str, match_value: str) -> bool:
+    """Return True when a candidate value satisfies the configured match rule."""
+    if match_type == MATCH_EXACT:
+        return candidate_value == match_value
+
+    if match_type == MATCH_CONTAINS:
+        return match_value in candidate_value
+
+    if match_type == MATCH_REGEX:
+        return re.search(match_value, candidate_value) is not None
+
+    raise CategoryMappingConfigError(f"Unsupported match_type: {match_type}.")
+
+
+def _matches_optional_constraint(
+    candidate_value: str,
+    constraint_value: str | None,
+) -> bool:
+    """Return True when an optional normalized constraint is satisfied."""
+    if constraint_value is None:
+        return True
+
+    return candidate_value == normalize_mapping_value(constraint_value)
+
+
+def matches_rule(
+    *,
+    rule: CategoryMappingRule,
+    source_value: object,
+    direction_value: object,
+    merchant_value: object,
+) -> bool:
+    """Evaluate whether a deterministic mapping rule applies to a transaction row."""
+    candidate_source = normalize_mapping_value(source_value)
+    candidate_direction = normalize_mapping_value(direction_value)
+    candidate_merchant = normalize_mapping_value(merchant_value)
+    normalized_match_value = normalize_mapping_value(rule.match_value)
+
+    if not _matches_value(rule.match_type, candidate_source, normalized_match_value):
+        return False
+
+    if not _matches_optional_constraint(
+        candidate_direction,
+        rule.direction_constraint,
+    ):
+        return False
+
+    if not _matches_optional_constraint(
+        candidate_merchant,
+        rule.merchant_constraint,
+    ):
+        return False
+
+    return True
 
 ##BRICK 6:
 
