@@ -431,8 +431,51 @@ def apply_alias_maps(
     )
 
     return mapped_df
-##BRICK 7: 
+##BRICK 7: Logic to resolve canonical categories for transaction rows
+def resolve_category_for_row(
+    *,
+    merchant_mapped: object,
+    category_mapped: object,
+    direction_value: object,
+    config: CategoryMappingConfig,
+) -> tuple[str, str, str]:
+    """Resolve canonical category outputs for a single transaction row."""
+    normalized_merchant = normalize_mapping_value(merchant_mapped)
+    normalized_category = normalize_mapping_value(category_mapped)
+    normalized_direction = normalize_mapping_value(direction_value)
 
+    for rule in config.rules:
+        if rule.source_field == COL_MERCHANT_NORMALIZED:
+            source_value = normalized_merchant
+        elif rule.source_field == COL_CATEGORY_NORMALIZED:
+            source_value = normalized_category
+        elif rule.source_field == COL_DIRECTION:
+            source_value = normalized_direction
+        else:
+            raise CategoryMappingConfigError(
+                f"Unsupported source_field in rule priority {rule.priority}: {rule.source_field}."
+            )
+
+        if matches_rule(
+            rule=rule,
+            source_value=source_value,
+            direction_value=normalized_direction,
+            merchant_value=normalized_merchant,
+        ):
+            return (
+                rule.target_category,
+                rule.target_subcategory,
+                f"rule:{rule.priority}",
+            )
+
+    if normalized_category in config.allowed_categories:
+        return normalized_category, "general", "category_alias"
+
+    return (
+        config.default_category,
+        config.default_subcategory,
+        "default_fallback",
+    )
 ##BRICK 8: 
 
 ##BRICK 9: 
