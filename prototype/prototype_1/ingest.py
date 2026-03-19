@@ -160,7 +160,7 @@ def fetch_documents():
 
 def create_chunks(documents):
     """Splits documents into overlapping chunks for better retrieval."""
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=100)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = text_splitter.split_documents(documents)
 
     print(f"Created {len(chunks)} chunks")

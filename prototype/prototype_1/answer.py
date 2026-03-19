@@ -53,7 +53,21 @@ def answer_question(question: str, history: list[dict] = []) -> tuple[str, list[
     """
     combined = combined_question(question, history)
     docs = fetch_context(combined)
-    context = "\n\n".join(doc.page_content for doc in docs)
+    # --- Minimal sanity check ---
+    MIN_CONTENT_LENGTH = 50  # adjust as needed
+
+    valid_docs = [
+        doc for doc in docs
+        if doc.page_content and len(doc.page_content.strip()) > MIN_CONTENT_LENGTH
+    ]
+
+    if not valid_docs:
+        print("⚠️ No meaningful context retrieved")
+        # Continue without context OR return early
+        context = "No relevant context found."
+    else:
+        context = "\n\n".join(doc.page_content for doc in valid_docs)
+    #context = "\n\n".join(doc.page_content for doc in docs)
     system_prompt = SYSTEM_PROMPT.format(context=context)
     messages = [SystemMessage(content=system_prompt)]
     messages.extend(convert_to_messages(history))

@@ -254,8 +254,85 @@ def build_default_category_mapping_config() -> CategoryMappingConfig:
         default_category=DEFAULT_CATEGORY,
         default_subcategory=DEFAULT_SUBCATEGORY,
     )
-##BRICK 4:
 
+##BRICK 4: Validation functions for category mapping configuration and input dataframe contract
+def validate_category_mapping_config(config: CategoryMappingConfig) -> None:
+    """Validate that the category mapping configuration is internally consistent."""
+    if not config.allowed_categories:
+        raise CategoryMappingConfigError("allowed_categories must not be empty.")
+
+    if not config.allowed_subcategories:
+        raise CategoryMappingConfigError("allowed_subcategories must not be empty.")
+
+    if config.default_category not in config.allowed_categories:
+        raise CategoryMappingConfigError(
+            f"default_category '{config.default_category}' is not in allowed_categories."
+        )
+
+    if config.default_subcategory not in config.allowed_subcategories:
+        raise CategoryMappingConfigError(
+            (
+                f"default_subcategory '{config.default_subcategory}' "
+                "is not in allowed_subcategories."
+            )
+        )
+
+    seen_priorities: set[int] = set()
+
+    for rule in config.rules:
+        if rule.priority in seen_priorities:
+            raise CategoryMappingConfigError(
+                f"Duplicate rule priority detected: {rule.priority}."
+            )
+        seen_priorities.add(rule.priority)
+
+        if rule.match_type not in SUPPORTED_MATCH_TYPES:
+            raise CategoryMappingConfigError(
+                f"Unsupported match_type '{rule.match_type}' in rule priority {rule.priority}."
+            )
+
+        if rule.source_field not in REQUIRED_INPUT_COLUMNS:
+            raise CategoryMappingConfigError(
+                (
+                    f"Unsupported source_field '{rule.source_field}' in "
+                    f"rule priority {rule.priority}."
+                )
+            )
+
+        if rule.target_category not in config.allowed_categories:
+            raise CategoryMappingConfigError(
+                (
+                    f"target_category '{rule.target_category}' in "
+                    f"rule priority {rule.priority} is not allowed."
+                )
+            )
+
+        if rule.target_subcategory not in config.allowed_subcategories:
+            raise CategoryMappingConfigError(
+                (
+                    f"target_subcategory '{rule.target_subcategory}' in "
+                    f"rule priority {rule.priority} is not allowed."
+                )
+            )
+
+        if not rule.match_value.strip():
+            raise CategoryMappingConfigError(
+                f"Empty match_value in rule priority {rule.priority}."
+            )
+
+
+def validate_category_mapping_inputs(df: pd.DataFrame) -> None:
+    """Validate that the normalized dataframe contains the required mapping columns."""
+    missing_columns = REQUIRED_INPUT_COLUMNS.difference(df.columns)
+
+    if missing_columns:
+        missing_sorted = ", ".join(sorted(missing_columns))
+        raise CategoryMappingInputError(
+            f"Input dataframe is missing required columns: {missing_sorted}."
+        )
+
+    if df.empty:
+        logger.warning("Category mapping received an empty dataframe.")
 ##BRICK 5:
 
 ##BRICK 6:
