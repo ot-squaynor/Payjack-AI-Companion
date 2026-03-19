@@ -402,8 +402,35 @@ def matches_rule(
 
     return True
 
-##BRICK 6:
+##BRICK 6: Logic to apply merchant and category alias maps to the normalized dataframe before rule evaluation
+def apply_alias_maps(
+    df: pd.DataFrame,
+    config: CategoryMappingConfig,
+) -> pd.DataFrame:
+    """Apply deterministic merchant and category alias standardization."""
+    mapped_df = df.copy()
 
+    mapped_df[COL_MERCHANT_MAPPED] = (
+        mapped_df[COL_MERCHANT_NORMALIZED]
+        .map(
+            lambda value: config.merchant_alias_map.get(
+                normalize_mapping_value(value),
+                normalize_mapping_value(value),
+            )
+        )
+    )
+
+    mapped_df[COL_CATEGORY_MAPPED] = (
+        mapped_df[COL_CATEGORY_NORMALIZED]
+        .map(
+            lambda value: config.category_alias_map.get(
+                normalize_mapping_value(value),
+                normalize_mapping_value(value),
+            )
+        )
+    )
+
+    return mapped_df
 ##BRICK 7: 
 
 ##BRICK 8: 
