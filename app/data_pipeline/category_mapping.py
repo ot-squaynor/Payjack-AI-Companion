@@ -544,5 +544,5 @@ def mapping_coverage_summary(df: pd.DataFrame) -> dict[str, int]:
 
     for source, count in source_counts.items():
         summary[f"source::{source}"] = int(count)
-
     return summary
+##
