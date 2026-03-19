@@ -512,4 +512,37 @@ def map_categories(
     mapped_df[COL_CATEGORY_MAPPING_SOURCE] = resolutions[COL_CATEGORY_MAPPING_SOURCE]
 
     return mapped_df
-##BRICK 9: 
+
+##BRICK 9: Function to summarize category mapping coverage
+def mapping_coverage_summary(df: pd.DataFrame) -> dict[str, int]:
+    """Summarize category mapping coverage and fallback usage."""
+    if COL_CATEGORY_MAPPING_SOURCE not in df.columns:
+        raise CategoryMappingInputError(
+            f"Missing required column for coverage summary: {COL_CATEGORY_MAPPING_SOURCE}."
+        )
+
+    source_counts = (
+        df[COL_CATEGORY_MAPPING_SOURCE]
+        .fillna("missing")
+        .astype(str)
+        .value_counts(dropna=False)
+        .to_dict()
+    )
+
+    summary = {
+        "total_rows": int(len(df)),
+        "default_fallback_rows": int(source_counts.get("default_fallback", 0)),
+        "category_alias_rows": int(source_counts.get("category_alias", 0)),
+        "rule_mapped_rows": int(
+            sum(
+                count
+                for source, count in source_counts.items()
+                if source.startswith("rule:")
+            )
+        ),
+    }
+
+    for source, count in source_counts.items():
+        summary[f"source::{source}"] = int(count)
+
+    return summary
