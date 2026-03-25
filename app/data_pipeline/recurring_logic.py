@@ -64,4 +64,64 @@ DEFAULT_MONTHLY_WINDOW_DAYS: Final[int] = 5
 DEFAULT_HIGH_CONFIDENCE_MIN_OCCURRENCES: Final[int] = 4
 DEFAULT_MEDIUM_CONFIDENCE_MIN_OCCURRENCES: Final[int] = 3
 DEFAULT_IRREGULAR_MAX_INTERVAL_SPAN_DAYS: Final[int] = 10
-##BRICK :
+
+##BRICK 2: Constants and Column Definitions
+#from typing import Final
+import pandas as pd
+
+
+COL_TRANSACTION_ID = "transaction_id"
+COL_TIMESTAMP = "timestamp"
+COL_AMOUNT = "amount"
+COL_DIRECTION = "direction"
+COL_MERCHANT_MAPPED = "merchant_mapped"
+COL_CATEGORY_MAPPED = "category_mapped"
+COL_SUBCATEGORY_MAPPED = "subcategory_mapped"
+
+REQUIRED_INPUT_COLUMNS: frozenset[str] = frozenset(
+    {
+        COL_TRANSACTION_ID,
+        COL_TIMESTAMP,
+        COL_AMOUNT,
+        COL_DIRECTION,
+        COL_MERCHANT_MAPPED,
+        COL_CATEGORY_MAPPED,
+        COL_SUBCATEGORY_MAPPED,
+    }
+)
+
+COL_IS_RECURRING = "is_recurring"
+COL_RECURRING_CADENCE = "recurrence_cadence"
+COL_RECURRING_CONFIDENCE = "recurrence_confidence"
+COL_RECURRING_GROUP_KEY = "recurrence_group_key"
+COL_RECURRING_OCCURRENCE_COUNT = "recurrence_occurrence_count"
+COL_RECURRING_INTERVAL_DAYS = "recurrence_interval_days"
+COL_RECURRING_AMOUNT_REFERENCE = "recurrence_amount_reference"
+
+CADENCE_NONE = "none"
+CADENCE_WEEKLY = "weekly"
+CADENCE_BIWEEKLY = "biweekly"
+CADENCE_MONTHLY = "monthly"
+CADENCE_IRREGULAR = "irregular"
+
+ALLOWED_CADENCES: frozenset[str] = frozenset(
+    {
+        CADENCE_NONE,
+        CADENCE_WEEKLY,
+        CADENCE_BIWEEKLY,
+        CADENCE_MONTHLY,
+        CADENCE_IRREGULAR,
+    }
+)
+
+CONFIDENCE_LOW = "low"
+CONFIDENCE_MEDIUM = "medium"
+CONFIDENCE_HIGH = "high"
+
+ALLOWED_CONFIDENCE_LEVELS: frozenset[str] = frozenset(
+    {
+        CONFIDENCE_LOW,
+        CONFIDENCE_MEDIUM,
+        CONFIDENCE_HIGH,
+    }
+)
