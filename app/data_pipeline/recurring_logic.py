@@ -22,7 +22,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
-from typing import Final
+from typing import Final, Sequence
+from app.data_pipeline.category_mapping import normalize_mapping_value
 
 
 logger = logging.getLogger(__name__)
@@ -231,6 +232,60 @@ def coerce_recurring_logic_types(df: pd.DataFrame) -> pd.DataFrame:
 
     return coerced_df
 
-##BRICK :
+##BRICK 5: Recurrence Grouping and Stability Checks
+def build_recurrence_group_key(
+    merchant_mapped: object,
+    category_mapped: object,
+    subcategory_mapped: object,
+    direction_value: object,
+) -> str:
+    """Build a deterministic recurrence grouping key from stable transaction attributes."""
+    merchant = normalize_mapping_value(merchant_mapped)
+    category = normalize_mapping_value(category_mapped)
+    subcategory = normalize_mapping_value(subcategory_mapped)
+    direction = normalize_mapping_value(direction_value)
+
+    return f"{merchant}|{category}|{subcategory}|{direction}"
+
+
+def amounts_within_tolerance(
+    values: Sequence[float],
+    config: RecurringDetectionConfig,
+) -> bool:
+    """Check whether a sequence of amounts is stable within configured tolerance."""
+    if not values:
+        return False
+
+    reference = float(values[0])
+
+    for value in values:
+        absolute_diff = abs(value - reference)
+        ratio_diff = absolute_diff / reference if reference != 0 else absolute_diff
+
+        if (
+            absolute_diff > config.amount_tolerance_absolute
+            and ratio_diff > config.amount_tolerance_ratio
+        ):
+            return False
+
+    return True
+
+
+def compute_sorted_intervals(
+    timestamps: Sequence[pd.Timestamp],
+) -> list[int]:
+    """Compute sorted day intervals between consecutive timestamps."""
+    if len(timestamps) < 2:
+        return []
+
+    sorted_ts = sorted(timestamps)
+    intervals: list[int] = []
+
+    for i in range(1, len(sorted_ts)):
+        delta = sorted_ts[i] - sorted_ts[i - 1]
+        intervals.append(int(delta.days))
+
+    return intervals
+
 ##BRICK :
 ##BRICK :
