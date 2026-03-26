@@ -412,5 +412,49 @@ def assess_group_recurrence(
         COL_RECURRING_INTERVAL_DAYS: avg_interval,
         COL_RECURRING_AMOUNT_REFERENCE: reference_amount,
     }
-##BRICK :
-##BRICK :
+
+##BRICK 8: Main Detection Function
+def detect_recurring_transactions(
+    df: pd.DataFrame,
+    config: RecurringDetectionConfig | None = None,
+) -> pd.DataFrame:
+    """Detect and annotate recurring transactions in a dataframe."""
+    resolved_config = config or build_default_recurring_detection_config()
+
+    validate_recurring_detection_config(resolved_config)
+    validate_recurring_logic_inputs(df)
+
+    working_df = coerce_recurring_logic_types(df)
+
+    working_df[COL_RECURRING_GROUP_KEY] = working_df.apply(
+        lambda row: build_recurrence_group_key(
+            merchant_mapped=row[COL_MERCHANT_MAPPED],
+            category_mapped=row[COL_CATEGORY_MAPPED],
+            subcategory_mapped=row[COL_SUBCATEGORY_MAPPED],
+            direction_value=row[COL_DIRECTION],
+        ),
+        axis=1,
+    )
+
+    results = []
+
+    for group_key, group_df in working_df.groupby(COL_RECURRING_GROUP_KEY):
+        assessment = assess_group_recurrence(group_df, resolved_config)
+
+        for idx in group_df.index:
+            row_result = {
+                COL_RECURRING_GROUP_KEY: group_key,
+                **assessment,
+            }
+            results.append((idx, row_result))
+
+    result_df = pd.DataFrame(
+        [item[1] for item in results],
+        index=[item[0] for item in results],
+    )
+
+    for col in result_df.columns:
+        working_df[col] = result_df[col]
+
+    return working_df
+##BRICK 9:
