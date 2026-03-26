@@ -287,5 +287,90 @@ def compute_sorted_intervals(
 
     return intervals
 
+##BRICK 6: Recurrence Inference Logic
+def normalize_recurring_value(value: object) -> str:
+    """Normalize a scalar value for deterministic recurrence comparisons."""
+    if value is None:
+        return ""
+
+    if pd.isna(value):
+        return ""
+
+    return str(value).strip().lower()
+
+
+def _all_intervals_within_window(
+    intervals: Sequence[int],
+    target_days: int,
+    window_days: int,
+) -> bool:
+    """Return True when all intervals fall within the configured cadence window."""
+    if not intervals:
+        return False
+
+    return all(abs(interval - target_days) <= window_days for interval in intervals)
+
+
+def infer_recurrence_cadence(
+    intervals: Sequence[int],
+    config: RecurringDetectionConfig,
+) -> str:
+    """Infer recurrence cadence from sorted transaction intervals."""
+    if not intervals:
+        return CADENCE_NONE
+
+    if _all_intervals_within_window(intervals, 7, config.weekly_window_days):
+        return CADENCE_WEEKLY
+
+    if _all_intervals_within_window(intervals, 14, config.biweekly_window_days):
+        return CADENCE_BIWEEKLY
+
+    if _all_intervals_within_window(intervals, 30, config.monthly_window_days):
+        return CADENCE_MONTHLY
+
+    interval_span = max(intervals) - min(intervals)
+    if interval_span <= config.irregular_max_interval_span_days:
+        return CADENCE_IRREGULAR
+
+    return CADENCE_NONE
+
+
+def infer_recurrence_confidence(
+    *,
+    occurrence_count: int,
+    cadence: str,
+    amount_stable: bool,
+    intervals: Sequence[int],
+    config: RecurringDetectionConfig,
+) -> str:
+    """Infer deterministic recurrence confidence from group characteristics."""
+    if cadence == CADENCE_NONE or occurrence_count < config.min_group_size:
+        return CONFIDENCE_LOW
+
+    if not amount_stable:
+        return CONFIDENCE_LOW
+
+    if not intervals:
+        return CONFIDENCE_LOW
+
+    interval_span = max(intervals) - min(intervals)
+
+    if (
+        occurrence_count >= config.high_confidence_min_occurrences
+        and cadence in {CADENCE_WEEKLY, CADENCE_BIWEEKLY, CADENCE_MONTHLY}
+        and interval_span <= min(
+            config.weekly_window_days,
+            config.biweekly_window_days,
+            config.monthly_window_days,
+        )
+    ):
+        return CONFIDENCE_HIGH
+
+    if occurrence_count >= config.medium_confidence_min_occurrences:
+        return CONFIDENCE_MEDIUM
+
+    return CONFIDENCE_LOW
+
+##BRICK :
 ##BRICK :
 ##BRICK :
