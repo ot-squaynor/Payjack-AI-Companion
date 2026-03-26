@@ -239,6 +239,75 @@ def make_finding(
             config.max_sample_ids_per_finding,
         ),
     )
+##BRICK 5: Quality Check Implementations
+def check_duplicate_transaction_ids(
+    df: pd.DataFrame,
+    config: QualityCheckConfig,
+) -> list[QualityCheckFinding]:
+    """Check for duplicate transaction identifiers."""
+    duplicate_mask = df[COL_TRANSACTION_ID].duplicated(keep=False)
+
+    if not duplicate_mask.any():
+        return []
+
+    duplicate_ids = df.loc[duplicate_mask, COL_TRANSACTION_ID].tolist()
+
+    return [
+        make_finding(
+            check_name=CHECK_DUPLICATE_TRANSACTION_IDS,
+            severity=SEVERITY_ERROR,
+            message="Duplicate transaction_id values detected in processed dataset.",
+            row_ids=duplicate_ids,
+            config=config,
+        )
+    ]
+
+
+def check_null_critical_fields(
+    df: pd.DataFrame,
+    config: QualityCheckConfig,
+) -> list[QualityCheckFinding]:
+    """Check for null values in critical processed columns."""
+    critical_columns = (
+        COL_TRANSACTION_ID,
+        COL_TIMESTAMP,
+        COL_AMOUNT,
+        COL_DIRECTION,
+        COL_MERCHANT_MAPPED,
+        COL_CATEGORY_MAPPED,
+        COL_SUBCATEGORY_MAPPED,
+        COL_CATEGORY_MAPPING_SOURCE,
+        COL_IS_RECURRING,
+        COL_RECURRING_CADENCE,
+        COL_RECURRING_CONFIDENCE,
+    )
+
+    findings: list[QualityCheckFinding] = []
+
+    for column_name in critical_columns:
+        null_mask = df[column_name].isna()
+        if not null_mask.any():
+            continue
+
+        row_ids = df.loc[null_mask, COL_TRANSACTION_ID].tolist()
+
+        findings.append(
+            make_finding(
+                check_name=CHECK_NULL_CRITICAL_FIELDS,
+                severity=SEVERITY_ERROR,
+                message=f"Null values detected in critical column '{column_name}'.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    return findings
+##BRICK :
+
+##BRICK :
+
+##BRICK :
+
 ##BRICK :
 
 ##BRICK :
