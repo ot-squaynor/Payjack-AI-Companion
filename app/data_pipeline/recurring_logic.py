@@ -457,4 +457,51 @@ def detect_recurring_transactions(
         working_df[col] = result_df[col]
 
     return working_df
-##BRICK 9:
+##BRICK 9: Recurrence Summary Function
+def recurrence_summary(df: pd.DataFrame) -> dict[str, int]:
+    """Summarize recurring transaction coverage and cadence distribution."""
+    required_summary_columns = {
+        COL_IS_RECURRING,
+        COL_RECURRING_CADENCE,
+        COL_RECURRING_CONFIDENCE,
+    }
+
+    missing_columns = required_summary_columns.difference(df.columns)
+    if missing_columns:
+        missing_sorted = ", ".join(sorted(missing_columns))
+        raise RecurringLogicInputError(
+            f"Missing required columns for recurrence summary: {missing_sorted}."
+        )
+
+    cadence_counts = (
+        df[COL_RECURRING_CADENCE]
+        .fillna(CADENCE_NONE)
+        .astype(str)
+        .value_counts(dropna=False)
+        .to_dict()
+    )
+
+    confidence_counts = (
+        df[COL_RECURRING_CONFIDENCE]
+        .fillna(CONFIDENCE_LOW)
+        .astype(str)
+        .value_counts(dropna=False)
+        .to_dict()
+    )
+
+    recurring_rows = int(df[COL_IS_RECURRING].fillna(False).astype(bool).sum())
+    total_rows = int(len(df))
+
+    summary = {
+        "total_rows": total_rows,
+        "recurring_rows": recurring_rows,
+        "non_recurring_rows": total_rows - recurring_rows,
+    }
+
+    for cadence, count in cadence_counts.items():
+        summary[f"cadence::{cadence}"] = int(count)
+
+    for confidence, count in confidence_counts.items():
+        summary[f"confidence::{confidence}"] = int(count)
+
+    return summary
