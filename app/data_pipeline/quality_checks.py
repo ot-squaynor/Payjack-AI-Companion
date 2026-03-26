@@ -400,7 +400,103 @@ def check_timestamp_sanity(
 
     return findings
 ##BRICK 7:
+def check_amount_sanity(
+    df: pd.DataFrame,
+    config: QualityCheckConfig,
+) -> list[QualityCheckFinding]:
+    """Validate numeric amount integrity for processed transactions."""
+    findings: list[QualityCheckFinding] = []
 
+    amounts = pd.to_numeric(df[COL_AMOUNT], errors="coerce")
+
+    invalid_mask = amounts.isna()
+    if invalid_mask.any():
+        row_ids = df.loc[invalid_mask, COL_TRANSACTION_ID].tolist()
+        findings.append(
+            make_finding(
+                check_name=CHECK_IMPOSSIBLE_AMOUNTS,
+                severity=SEVERITY_ERROR,
+                message="Invalid or non-numeric amounts detected.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    non_positive_mask = amounts <= 0
+    if non_positive_mask.any():
+        row_ids = df.loc[non_positive_mask, COL_TRANSACTION_ID].tolist()
+        findings.append(
+            make_finding(
+                check_name=CHECK_IMPOSSIBLE_AMOUNTS,
+                severity=SEVERITY_WARNING,
+                message="Non-positive amounts detected in processed dataset.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    return findings
+
+
+def check_recurrence_consistency(
+    df: pd.DataFrame,
+    config: QualityCheckConfig,
+) -> list[QualityCheckFinding]:
+    """Validate logical consistency across recurrence-related output fields."""
+    findings: list[QualityCheckFinding] = []
+
+    recurring_true_mask = df[COL_IS_RECURRING].fillna(False).astype(bool)
+    recurring_false_mask = ~recurring_true_mask
+
+    missing_group_key_mask = recurring_true_mask & (
+        df[COL_RECURRING_GROUP_KEY].isna()
+        | (df[COL_RECURRING_GROUP_KEY].astype(str).str.strip() == "")
+    )
+    if missing_group_key_mask.any():
+        row_ids = df.loc[missing_group_key_mask, COL_TRANSACTION_ID].tolist()
+        findings.append(
+            make_finding(
+                check_name=CHECK_RECURRING_FIELD_CONSISTENCY,
+                severity=SEVERITY_ERROR,
+                message="Recurring rows are missing recurrence_group_key values.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    low_occurrence_mask = recurring_true_mask & (
+        pd.to_numeric(df[COL_RECURRING_OCCURRENCE_COUNT], errors="coerce")
+        < config.max_sample_ids_per_finding
+    )
+    if low_occurrence_mask.any():
+        row_ids = df.loc[low_occurrence_mask, COL_TRANSACTION_ID].tolist()
+        findings.append(
+            make_finding(
+                check_name=CHECK_RECURRING_FIELD_CONSISTENCY,
+                severity=SEVERITY_ERROR,
+                message="Recurring rows have implausibly low recurrence_occurrence_count values.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    inconsistent_false_mask = recurring_false_mask & (
+        (df[COL_RECURRING_CADENCE] != "none")
+        | (df[COL_RECURRING_CONFIDENCE] != "low")
+    )
+    if inconsistent_false_mask.any():
+        row_ids = df.loc[inconsistent_false_mask, COL_TRANSACTION_ID].tolist()
+        findings.append(
+            make_finding(
+                check_name=CHECK_RECURRING_FIELD_CONSISTENCY,
+                severity=SEVERITY_WARNING,
+                message="Non-recurring rows contain non-default cadence or confidence values.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    return findings
 ##BRICK 8:
 
 ##BRICK 9:
