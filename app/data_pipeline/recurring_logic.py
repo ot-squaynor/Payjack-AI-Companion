@@ -140,5 +140,97 @@ def build_default_recurring_detection_config() -> RecurringDetectionConfig:
         medium_confidence_min_occurrences=DEFAULT_MEDIUM_CONFIDENCE_MIN_OCCURRENCES,
         irregular_max_interval_span_days=DEFAULT_IRREGULAR_MAX_INTERVAL_SPAN_DAYS,
     )
+##BRICK 4: Configuration and Input Validation
+def validate_recurring_detection_config(config: RecurringDetectionConfig) -> None:
+    """Validate that the recurrence detection configuration is internally consistent."""
+    if config.min_group_size < 2:
+        raise RecurringLogicConfigError("min_group_size must be at least 2.")
+
+    if config.amount_tolerance_ratio < 0:
+        raise RecurringLogicConfigError(
+            "amount_tolerance_ratio must be greater than or equal to 0."
+        )
+
+    if config.amount_tolerance_absolute < 0:
+        raise RecurringLogicConfigError(
+            "amount_tolerance_absolute must be greater than or equal to 0."
+        )
+
+    if config.weekly_window_days < 0:
+        raise RecurringLogicConfigError(
+            "weekly_window_days must be greater than or equal to 0."
+        )
+
+    if config.biweekly_window_days < 0:
+        raise RecurringLogicConfigError(
+            "biweekly_window_days must be greater than or equal to 0."
+        )
+
+    if config.monthly_window_days < 0:
+        raise RecurringLogicConfigError(
+            "monthly_window_days must be greater than or equal to 0."
+        )
+
+    if config.medium_confidence_min_occurrences < config.min_group_size:
+        raise RecurringLogicConfigError(
+            "medium_confidence_min_occurrences must be greater than or equal to min_group_size."
+        )
+
+    if config.high_confidence_min_occurrences < config.medium_confidence_min_occurrences:
+        raise RecurringLogicConfigError(
+            "high_confidence_min_occurrences must be greater than or equal to "
+            "medium_confidence_min_occurrences."
+        )
+
+    if config.irregular_max_interval_span_days < 0:
+        raise RecurringLogicConfigError(
+            "irregular_max_interval_span_days must be greater than or equal to 0."
+        )
+
+
+def validate_recurring_logic_inputs(df: pd.DataFrame) -> None:
+    """Validate that the mapped dataframe contains the required recurrence columns."""
+    missing_columns = REQUIRED_INPUT_COLUMNS.difference(df.columns)
+
+    if missing_columns:
+        missing_sorted = ", ".join(sorted(missing_columns))
+        raise RecurringLogicInputError(
+            f"Input dataframe is missing required columns: {missing_sorted}."
+        )
+
+    if df.empty:
+        logger.warning("Recurring detection received an empty dataframe.")
+
+
+def coerce_recurring_logic_types(df: pd.DataFrame) -> pd.DataFrame:
+    """Coerce timestamp and amount columns into deterministic processing types."""
+    coerced_df = df.copy()
+
+    coerced_df[COL_TIMESTAMP] = pd.to_datetime(
+        coerced_df[COL_TIMESTAMP],
+        errors="coerce",
+        utc=True,
+    )
+    coerced_df[COL_AMOUNT] = pd.to_numeric(
+        coerced_df[COL_AMOUNT],
+        errors="coerce",
+    )
+
+    invalid_timestamp_count = int(coerced_df[COL_TIMESTAMP].isna().sum())
+    invalid_amount_count = int(coerced_df[COL_AMOUNT].isna().sum())
+
+    if invalid_timestamp_count > 0:
+        raise RecurringLogicInputError(
+            f"{invalid_timestamp_count} rows have invalid timestamps after coercion."
+        )
+
+    if invalid_amount_count > 0:
+        raise RecurringLogicInputError(
+            f"{invalid_amount_count} rows have invalid amounts after coercion."
+        )
+
+    return coerced_df
+
+##BRICK :
 ##BRICK :
 ##BRICK :
