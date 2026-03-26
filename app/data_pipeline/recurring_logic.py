@@ -287,7 +287,7 @@ def compute_sorted_intervals(
 
     return intervals
 
-##BRICK 6: Recurrence Inference Logic
+##BRICK 6: 
 def normalize_recurring_value(value: object) -> str:
     """Normalize a scalar value for deterministic recurrence comparisons."""
     if value is None:
@@ -371,6 +371,46 @@ def infer_recurrence_confidence(
 
     return CONFIDENCE_LOW
 
-##BRICK :
+##BRICK 7: Main Recurrence Assessment Function
+def assess_group_recurrence(
+    group_df: pd.DataFrame,
+    config: RecurringDetectionConfig,
+) -> dict[str, object]:
+    """Assess recurrence characteristics for a grouped set of transactions."""
+    occurrence_count = int(len(group_df))
+
+    timestamps = group_df[COL_TIMESTAMP].tolist()
+    amounts = group_df[COL_AMOUNT].tolist()
+
+    intervals = compute_sorted_intervals(timestamps)
+    amount_stable = amounts_within_tolerance(amounts, config)
+
+    cadence = infer_recurrence_cadence(intervals, config)
+
+    confidence = infer_recurrence_confidence(
+        occurrence_count=occurrence_count,
+        cadence=cadence,
+        amount_stable=amount_stable,
+        intervals=intervals,
+        config=config,
+    )
+
+    is_recurring = (
+        occurrence_count >= config.min_group_size
+        and cadence != CADENCE_NONE
+        and amount_stable
+    )
+
+    reference_amount = float(amounts[0]) if amounts else 0.0
+    avg_interval = float(sum(intervals) / len(intervals)) if intervals else 0.0
+
+    return {
+        COL_IS_RECURRING: bool(is_recurring),
+        COL_RECURRING_CADENCE: cadence,
+        COL_RECURRING_CONFIDENCE: confidence,
+        COL_RECURRING_OCCURRENCE_COUNT: occurrence_count,
+        COL_RECURRING_INTERVAL_DAYS: avg_interval,
+        COL_RECURRING_AMOUNT_REFERENCE: reference_amount,
+    }
 ##BRICK :
 ##BRICK :
