@@ -505,3 +505,5 @@ def recurrence_summary(df: pd.DataFrame) -> dict[str, int]:
         summary[f"confidence::{confidence}"] = int(count)
 
     return summary
+
+##
