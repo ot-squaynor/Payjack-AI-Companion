@@ -125,3 +125,20 @@ ALLOWED_CONFIDENCE_LEVELS: frozenset[str] = frozenset(
         CONFIDENCE_HIGH,
     }
 )
+
+##BRICK 3: Default Configuration Builder
+def build_default_recurring_detection_config() -> RecurringDetectionConfig:
+    """Build the default deterministic recurrence detection configuration."""
+    return RecurringDetectionConfig(
+        min_group_size=DEFAULT_MIN_GROUP_SIZE,
+        amount_tolerance_ratio=DEFAULT_AMOUNT_TOLERANCE_RATIO,
+        amount_tolerance_absolute=DEFAULT_AMOUNT_TOLERANCE_ABSOLUTE,
+        weekly_window_days=DEFAULT_WEEKLY_WINDOW_DAYS,
+        biweekly_window_days=DEFAULT_BIWEEKLY_WINDOW_DAYS,
+        monthly_window_days=DEFAULT_MONTHLY_WINDOW_DAYS,
+        high_confidence_min_occurrences=DEFAULT_HIGH_CONFIDENCE_MIN_OCCURRENCES,
+        medium_confidence_min_occurrences=DEFAULT_MEDIUM_CONFIDENCE_MIN_OCCURRENCES,
+        irregular_max_interval_span_days=DEFAULT_IRREGULAR_MAX_INTERVAL_SPAN_DAYS,
+    )
+##BRICK :
+##BRICK :
