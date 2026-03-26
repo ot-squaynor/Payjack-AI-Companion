@@ -302,12 +302,107 @@ def check_null_critical_fields(
         )
 
     return findings
-##BRICK :
+##BRICK 6: Enumerated Value Checks
+def check_allowed_enums(
+    df: pd.DataFrame,
+    config: QualityCheckConfig,
+) -> list[QualityCheckFinding]:
+    """Validate that categorical fields stay within allowed enum sets."""
+    findings: list[QualityCheckFinding] = []
 
-##BRICK :
+    enum_checks = [
+        (COL_DIRECTION, config.allowed_directions, CHECK_INVALID_DIRECTIONS),
+        (COL_CATEGORY_MAPPED, config.allowed_categories, CHECK_INVALID_CATEGORIES),
+        (COL_SUBCATEGORY_MAPPED, config.allowed_subcategories, CHECK_INVALID_SUBCATEGORIES),
+        (COL_RECURRING_CADENCE, config.allowed_cadences, CHECK_INVALID_RECURRENCE_CADENCE),
+        (COL_RECURRING_CONFIDENCE, config.allowed_confidence_levels, CHECK_INVALID_RECURRENCE_CONFIDENCE),
+    ]
 
-##BRICK :
+    for column_name, allowed_values, check_name in enum_checks:
+        if not allowed_values:
+            # Skip if config does not enforce this enum set
+            continue
 
-##BRICK :
+        invalid_mask = ~df[column_name].isin(allowed_values)
+
+        if not invalid_mask.any():
+            continue
+
+        row_ids = df.loc[invalid_mask, COL_TRANSACTION_ID].tolist()
+
+        findings.append(
+            make_finding(
+                check_name=check_name,
+                severity=SEVERITY_ERROR,
+                message=f"Invalid values detected in '{column_name}'.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    return findings
+
+
+def check_timestamp_sanity(
+    df: pd.DataFrame,
+    config: QualityCheckConfig,
+) -> list[QualityCheckFinding]:
+    """Validate timestamp integrity and policy compliance."""
+    findings: list[QualityCheckFinding] = []
+
+    # Ensure timestamps are datetime
+    timestamps = pd.to_datetime(df[COL_TIMESTAMP], errors="coerce", utc=True)
+
+    # Invalid timestamps
+    invalid_mask = timestamps.isna()
+    if invalid_mask.any():
+        row_ids = df.loc[invalid_mask, COL_TRANSACTION_ID].tolist()
+        findings.append(
+            make_finding(
+                check_name=CHECK_IMPOSSIBLE_TIMESTAMPS,
+                severity=SEVERITY_ERROR,
+                message="Invalid or non-coercible timestamps detected.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    # Minimum timestamp policy
+    min_ts = pd.to_datetime(config.min_timestamp, utc=True)
+    too_early_mask = timestamps < min_ts
+    if too_early_mask.any():
+        row_ids = df.loc[too_early_mask, COL_TRANSACTION_ID].tolist()
+        findings.append(
+            make_finding(
+                check_name=CHECK_IMPOSSIBLE_TIMESTAMPS,
+                severity=SEVERITY_ERROR,
+                message="Timestamps earlier than allowed minimum detected.",
+                row_ids=row_ids,
+                config=config,
+            )
+        )
+
+    # Future timestamp policy
+    if not config.allow_future_timestamps:
+        now_ts = pd.Timestamp.utcnow()
+        future_mask = timestamps > now_ts
+        if future_mask.any():
+            row_ids = df.loc[future_mask, COL_TRANSACTION_ID].tolist()
+            findings.append(
+                make_finding(
+                    check_name=CHECK_IMPOSSIBLE_TIMESTAMPS,
+                    severity=SEVERITY_WARNING,
+                    message="Future timestamps detected.",
+                    row_ids=row_ids,
+                    config=config,
+                )
+            )
+
+    return findings
+##BRICK 7:
+
+##BRICK 8:
+
+##BRICK 9:
 
 ##BRICK :
