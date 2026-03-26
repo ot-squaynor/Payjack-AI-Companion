@@ -497,8 +497,48 @@ def check_recurrence_consistency(
         )
 
     return findings
-##BRICK 8:
+##BRICK 8: Main Quality Check Runner
+def run_quality_checks(
+    df: pd.DataFrame,
+    config: QualityCheckConfig | None = None,
+) -> QualityCheckReport:
+    """Run deterministic quality checks against the processed transaction dataframe."""
+    resolved_config = config or build_default_quality_check_config()
 
+    validate_quality_check_inputs(df)
+
+    findings: list[QualityCheckFinding] = []
+    findings.extend(check_duplicate_transaction_ids(df, resolved_config))
+    findings.extend(check_null_critical_fields(df, resolved_config))
+    findings.extend(check_allowed_enums(df, resolved_config))
+    findings.extend(check_timestamp_sanity(df, resolved_config))
+    findings.extend(check_amount_sanity(df, resolved_config))
+    findings.extend(check_recurrence_consistency(df, resolved_config))
+
+    error_count = sum(1 for finding in findings if finding.severity == SEVERITY_ERROR)
+    warning_count = sum(1 for finding in findings if finding.severity == SEVERITY_WARNING)
+    info_count = sum(1 for finding in findings if finding.severity == SEVERITY_INFO)
+
+    report = QualityCheckReport(
+        passed=error_count == 0,
+        finding_count=len(findings),
+        error_count=error_count,
+        warning_count=warning_count,
+        info_count=info_count,
+        findings=tuple(findings),
+    )
+
+    if report.passed:
+        logger.info("Quality checks passed with %s findings.", report.finding_count)
+    else:
+        logger.warning(
+            "Quality checks failed with %s errors, %s warnings, %s infos.",
+            report.error_count,
+            report.warning_count,
+            report.info_count,
+        )
+
+    return report
 ##BRICK 9:
 
 ##BRICK :
