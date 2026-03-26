@@ -539,6 +539,25 @@ def run_quality_checks(
         )
 
     return report
-##BRICK 9:
+##BRICK 9: Report Serialization
 
+def quality_check_report_to_dict(report: QualityCheckReport) -> dict[str, object]:
+    """Serialize a quality check report into a plain dictionary."""
+    return {
+        "passed": report.passed,
+        "finding_count": report.finding_count,
+        "error_count": report.error_count,
+        "warning_count": report.warning_count,
+        "info_count": report.info_count,
+        "findings": [
+            {
+                "check_name": finding.check_name,
+                "severity": finding.severity,
+                "message": finding.message,
+                "row_count": finding.row_count,
+                "sample_ids": list(finding.sample_ids),
+            }
+            for finding in report.findings
+        ],
+    }
 ##BRICK :

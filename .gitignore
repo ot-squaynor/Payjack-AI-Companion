@@ -1,5 +1,7 @@
 # Github's default gitignore for Python
 
+#Custom ignores for Payjack AI Companion
+KEY_CODE_COMMANDS.txt
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
