@@ -71,8 +71,56 @@ class QualityCheckConfig:
     min_timestamp: str = "2000-01-01"
     allow_future_timestamps: bool = False
 
-##BRICK :
+##BRICK 2: Check Implementations
+import pandas as pd
 
+
+CHECK_REQUIRED_COLUMNS = "check_required_columns"
+CHECK_DUPLICATE_TRANSACTION_IDS = "check_duplicate_transaction_ids"
+CHECK_NULL_CRITICAL_FIELDS = "check_null_critical_fields"
+CHECK_INVALID_DIRECTIONS = "check_invalid_directions"
+CHECK_INVALID_CATEGORIES = "check_invalid_categories"
+CHECK_INVALID_SUBCATEGORIES = "check_invalid_subcategories"
+CHECK_INVALID_RECURRENCE_CADENCE = "check_invalid_recurrence_cadence"
+CHECK_INVALID_RECURRENCE_CONFIDENCE = "check_invalid_recurrence_confidence"
+CHECK_IMPOSSIBLE_TIMESTAMPS = "check_impossible_timestamps"
+CHECK_IMPOSSIBLE_AMOUNTS = "check_impossible_amounts"
+CHECK_RECURRING_FIELD_CONSISTENCY = "check_recurring_field_consistency"
+
+
+COL_TRANSACTION_ID = "transaction_id"
+COL_TIMESTAMP = "timestamp"
+COL_AMOUNT = "amount"
+COL_DIRECTION = "direction"
+COL_MERCHANT_MAPPED = "merchant_mapped"
+COL_CATEGORY_MAPPED = "category_mapped"
+COL_SUBCATEGORY_MAPPED = "subcategory_mapped"
+COL_CATEGORY_MAPPING_SOURCE = "category_mapping_source"
+
+COL_IS_RECURRING = "is_recurring"
+COL_RECURRING_CADENCE = "recurrence_cadence"
+COL_RECURRING_CONFIDENCE = "recurrence_confidence"
+COL_RECURRING_GROUP_KEY = "recurrence_group_key"
+COL_RECURRING_OCCURRENCE_COUNT = "recurrence_occurrence_count"
+
+
+REQUIRED_PROCESSED_COLUMNS: frozenset[str] = frozenset(
+    {
+        COL_TRANSACTION_ID,
+        COL_TIMESTAMP,
+        COL_AMOUNT,
+        COL_DIRECTION,
+        COL_MERCHANT_MAPPED,
+        COL_CATEGORY_MAPPED,
+        COL_SUBCATEGORY_MAPPED,
+        COL_CATEGORY_MAPPING_SOURCE,
+        COL_IS_RECURRING,
+        COL_RECURRING_CADENCE,
+        COL_RECURRING_CONFIDENCE,
+        COL_RECURRING_GROUP_KEY,
+        COL_RECURRING_OCCURRENCE_COUNT,
+    }
+)
 ##BRICK :
 
 ##BRICK :
