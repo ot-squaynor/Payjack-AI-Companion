@@ -397,8 +397,109 @@ def build_spend_warnings(currency_breakdown: dict[str, Decimal]) -> tuple[str, .
 
     return tuple(warnings)
 
-##BRICK 6:
+##BRICK 6: Grouping key construction and grouped aggregation
+def _build_group_key_series(df: pd.DataFrame, group_by: str) -> pd.Series:
+    """Build a deterministic grouping key series for the requested dimension."""
+    if group_by == "category":
+        return df["category"].astype(str)
 
+    if group_by == "subcategory":
+        return df["subcategory"].astype(str)
+
+    if group_by == "merchant":
+        return df["merchant"].astype(str)
+
+    if group_by == "account":
+        return df["account_id"].astype(str)
+
+    if group_by == "currency":
+        return df["currency"].astype(str)
+
+    if group_by == "month":
+        if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+            timestamp_series = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+        else:
+            timestamp_series = df["timestamp"]
+
+        if timestamp_series.isna().any():
+            raise SpendSummaryInputError(
+                "Input dataframe contains invalid timestamp values that cannot be grouped by month safely."
+            )
+
+        return timestamp_series.dt.strftime("%Y-%m")
+
+    raise SpendSummaryInputError(
+        f"Unsupported group_by '{group_by}'. Allowed values: {sorted(ALLOWED_GROUP_BY)}."
+    )
+
+
+def aggregate_grouped_spend(
+    df: pd.DataFrame,
+    *,
+    group_by: str | None,
+    limit: int,
+    sort_descending: bool = DEFAULT_SORT_DESCENDING,
+) -> tuple[GroupedSpendRow, ...]:
+    """Aggregate spend deterministically by the requested grouping dimension."""
+    if group_by is None or df.empty:
+        return ()
+
+    if group_by not in ALLOWED_GROUP_BY:
+        raise SpendSummaryInputError(
+            f"Unsupported group_by '{group_by}'. Allowed values: {sorted(ALLOWED_GROUP_BY)}."
+        )
+
+    if limit <= 0:
+        raise SpendSummaryInputError("limit must be greater than zero.")
+
+    group_key_series = _build_group_key_series(df, group_by)
+
+    grouped_amounts: dict[str, list[Decimal]] = {}
+    grouped_counts: dict[str, int] = {}
+    grouped_currencies: dict[str, set[str]] = {}
+
+    for idx, group_key in group_key_series.items():
+        normalized_key = str(group_key).strip()
+        if not normalized_key:
+            normalized_key = "unknown"
+
+        amount = df.at[idx, "normalized_amount"]
+        currency = str(df.at[idx, "currency"]).strip()
+
+        if not isinstance(amount, Decimal):
+            raise SpendSummaryInputError("normalized_amount must contain Decimal values.")
+
+        if not currency:
+            raise SpendSummaryInputError("Input dataframe contains blank currency values.")
+
+        grouped_amounts.setdefault(normalized_key, []).append(amount)
+        grouped_counts[normalized_key] = grouped_counts.get(normalized_key, 0) + 1
+        grouped_currencies.setdefault(normalized_key, set()).add(currency)
+
+    grouped_rows: list[GroupedSpendRow] = []
+    for key in grouped_amounts:
+        currencies = grouped_currencies[key]
+        currency_value = next(iter(currencies)) if len(currencies) == 1 else None
+
+        grouped_rows.append(
+            GroupedSpendRow(
+                key=key,
+                total_amount=_sum_decimal_values(grouped_amounts[key]),
+                transaction_count=grouped_counts[key],
+                currency=currency_value,
+            )
+        )
+
+    grouped_rows.sort(
+        key=lambda row: (
+            row.total_amount,
+            row.transaction_count,
+            row.key.lower(),
+        ),
+        reverse=sort_descending,
+    )
+
+    return tuple(grouped_rows[:limit])
 ##BRICK :
 
 ##BRICK :
