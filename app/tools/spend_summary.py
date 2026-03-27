@@ -109,9 +109,95 @@ class SpendSummaryResult:
     applied_filters: dict[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
 
+##BRICK 2: Normalization and validation functions
+def _normalize_string_tuple(values: Any) -> tuple[str, ...]:
+    """Normalize string-like filter inputs into a clean tuple of strings."""
+    if values is None:
+        return ()
+
+    if isinstance(values, str):
+        candidate_values = [values]
+    elif isinstance(values, (list, tuple, set, frozenset)):
+        candidate_values = list(values)
+    else:
+        raise SpendSummaryInputError("Filter values must be a string, sequence, or None.")
+
+    normalized: list[str] = []
+    for value in candidate_values:
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise SpendSummaryInputError("All filter values must be strings.")
+        cleaned = value.strip()
+        if cleaned:
+            normalized.append(cleaned)
+
+    return tuple(normalized)
+
+
+def normalize_spend_summary_request(
+    *,
+    user_id: str | None = None,
+    account_ids: Any = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    categories: Any = None,
+    merchants: Any = None,
+    direction: str = DEFAULT_DIRECTION,
+    group_by: str | None = None,
+    limit: int = DEFAULT_GROUP_LIMIT,
+) -> SpendSummaryRequest:
+    """Validate and normalize raw request values into a deterministic request contract."""
+    cleaned_user_id = user_id.strip() if isinstance(user_id, str) and user_id.strip() else None
+    cleaned_start_date = start_date.strip() if isinstance(start_date, str) and start_date.strip() else None
+    cleaned_end_date = end_date.strip() if isinstance(end_date, str) and end_date.strip() else None
+
+    normalized_direction = direction.strip().lower() if isinstance(direction, str) and direction.strip() else DEFAULT_DIRECTION
+    if normalized_direction not in ALLOWED_DIRECTIONS:
+        raise SpendSummaryInputError(
+            f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
+        )
+
+    normalized_group_by: str | None = None
+    if group_by is not None:
+        if not isinstance(group_by, str) or not group_by.strip():
+            raise SpendSummaryInputError("group_by must be a non-empty string when provided.")
+        normalized_group_by = group_by.strip().lower()
+        if normalized_group_by not in ALLOWED_GROUP_BY:
+            raise SpendSummaryInputError(
+                f"Unsupported group_by '{group_by}'. Allowed values: {sorted(ALLOWED_GROUP_BY)}."
+            )
+
+    if not isinstance(limit, int):
+        raise SpendSummaryInputError("limit must be an integer.")
+    if limit <= 0:
+        raise SpendSummaryInputError("limit must be greater than zero.")
+
+    if cleaned_start_date and cleaned_end_date and cleaned_start_date > cleaned_end_date:
+        raise SpendSummaryInputError("start_date must be less than or equal to end_date.")
+
+    return SpendSummaryRequest(
+        user_id=cleaned_user_id,
+        account_ids=_normalize_string_tuple(account_ids),
+        start_date=cleaned_start_date,
+        end_date=cleaned_end_date,
+        categories=_normalize_string_tuple(categories),
+        merchants=_normalize_string_tuple(merchants),
+        direction=normalized_direction,
+        group_by=normalized_group_by,
+        limit=limit,
+    )
+
+
+def validate_required_columns(df: pd.DataFrame) -> None:
+    """Validate that the processed dataframe contains the required spend-summary columns."""
+    missing_columns = sorted(REQUIRED_COLUMNS.difference(df.columns))
+    if missing_columns:
+        raise SpendSummaryInputError(
+            f"Input dataframe is missing required columns: {missing_columns}."
+        )
 ##BRICK :
 
-##BRICK :
 
 ##BRICK :
 
