@@ -10,6 +10,7 @@ __pycache__/
 # C extensions
 *.so
 
+e -i HEAD~20.txt
 # Distribution / packaging
 .Python
 build/
