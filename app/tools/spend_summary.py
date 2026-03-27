@@ -286,6 +286,61 @@ def apply_spend_filters(
 
     return filtered_df
 
+##BRICK 4: Normalization and safety functions for aggregation
+DECIMAL_QUANTIZE_PLACES = Decimal("0.01")
+ZERO_DECIMAL = Decimal("0.00")
+
+
+def _ensure_non_empty_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a defensive copy of the dataframe, preserving empty results safely."""
+    if df.empty:
+        return df.copy()
+    return df.copy()
+
+
+def _normalize_amount_series(df: pd.DataFrame) -> pd.Series:
+    """Normalize transaction amounts into Decimal values for deterministic aggregation."""
+    if "amount" not in df.columns:
+        raise SpendSummaryInputError("Input dataframe is missing required column: ['amount'].")
+
+    normalized_amounts: list[Decimal] = []
+
+    for raw_value in df["amount"].tolist():
+        if pd.isna(raw_value):
+            raise SpendSummaryInputError("Input dataframe contains null amount values.")
+
+        try:
+            decimal_value = Decimal(str(raw_value)).quantize(DECIMAL_QUANTIZE_PLACES)
+        except Exception as exc:  # pragma: no cover
+            raise SpendSummaryInputError(
+                f"Input dataframe contains invalid amount value: {raw_value!r}."
+            ) from exc
+
+        normalized_amounts.append(decimal_value)
+
+    return pd.Series(normalized_amounts, index=df.index, dtype="object")
+
+
+def _select_valid_spend_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Return rows safe for spend aggregation after filter application."""
+    safe_df = _ensure_non_empty_dataframe(df)
+
+    if safe_df.empty:
+        safe_df["normalized_amount"] = pd.Series(dtype="object")
+        return safe_df
+
+    normalized_amounts = _normalize_amount_series(safe_df)
+
+    safe_df = safe_df.copy()
+    safe_df["normalized_amount"] = normalized_amounts
+
+    return safe_df
+##BRICK :
+
+##BRICK :
+
+##BRICK :
+
 ##BRICK :
 
 ##BRICK :
