@@ -500,8 +500,58 @@ def aggregate_grouped_spend(
     )
 
     return tuple(grouped_rows[:limit])
-##BRICK :
+##BRICK 7: Main summarization function
+def summarize_spend(
+    df: pd.DataFrame,
+    request: SpendSummaryRequest,
+) -> SpendSummaryResult:
+    """Run the deterministic spend summary tool on a processed transaction dataframe."""
+    validate_required_columns(df)
 
+    filtered_df = apply_spend_filters(df, request)
+    spend_df = _select_valid_spend_rows(filtered_df)
+
+    total_amount = aggregate_total_spend(spend_df)
+    transaction_count = _count_transactions(spend_df)
+    currency_breakdown = build_currency_breakdown(spend_df)
+    grouped_breakdown = aggregate_grouped_spend(
+        spend_df,
+        group_by=request.group_by,
+        limit=request.limit,
+    )
+    warnings = build_spend_warnings(currency_breakdown)
+
+    applied_filters: dict[str, Any] = {
+        "user_id": request.user_id,
+        "account_ids": request.account_ids,
+        "start_date": request.start_date,
+        "end_date": request.end_date,
+        "categories": request.categories,
+        "merchants": request.merchants,
+        "direction": request.direction,
+        "group_by": request.group_by,
+        "limit": request.limit,
+    }
+
+    logger.info(
+        "Spend summary computed successfully.",
+        extra={
+            "rows_in": len(df),
+            "rows_after_filters": len(filtered_df),
+            "transaction_count": transaction_count,
+            "group_by": request.group_by,
+            "currency_count": len(currency_breakdown),
+        },
+    )
+
+    return SpendSummaryResult(
+        total_amount=total_amount,
+        transaction_count=transaction_count,
+        currency_breakdown=currency_breakdown,
+        grouped_breakdown=grouped_breakdown,
+        applied_filters=applied_filters,
+        warnings=warnings,
+    )
 ##BRICK :
 
 ##BRICK :
