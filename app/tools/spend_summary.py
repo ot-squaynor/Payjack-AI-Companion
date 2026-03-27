@@ -335,9 +335,69 @@ def _select_valid_spend_rows(df: pd.DataFrame) -> pd.DataFrame:
     safe_df["normalized_amount"] = normalized_amounts
 
     return safe_df
-##BRICK :
 
-##BRICK :
+##BRICK 5: Aggregation and breakdown functions
+def _sum_decimal_values(values: list[Decimal]) -> Decimal:
+    """Sum Decimal values deterministically."""
+    total = ZERO_DECIMAL
+    for value in values:
+        total += value
+    return total.quantize(DECIMAL_QUANTIZE_PLACES)
+
+
+def _count_transactions(df: pd.DataFrame) -> int:
+    """Count transactions in the filtered spend dataframe."""
+    return int(len(df.index))
+
+
+def build_currency_breakdown(df: pd.DataFrame) -> dict[str, Decimal]:
+    """Build a deterministic spend breakdown by currency."""
+    if df.empty:
+        return {}
+
+    currency_totals: dict[str, list[Decimal]] = {}
+
+    for _, row in df.iterrows():
+        currency = str(row["currency"]).strip()
+        if not currency:
+            raise SpendSummaryInputError("Input dataframe contains blank currency values.")
+
+        amount = row["normalized_amount"]
+        if not isinstance(amount, Decimal):
+            raise SpendSummaryInputError("normalized_amount must contain Decimal values.")
+
+        currency_totals.setdefault(currency, []).append(amount)
+
+    return {
+        currency: _sum_decimal_values(amounts)
+        for currency, amounts in sorted(currency_totals.items(), key=lambda item: item[0])
+    }
+
+
+def aggregate_total_spend(df: pd.DataFrame) -> Decimal:
+    """Aggregate total spend across all filtered spend rows."""
+    if df.empty:
+        return ZERO_DECIMAL
+
+    amounts = df["normalized_amount"].tolist()
+    if any(not isinstance(amount, Decimal) for amount in amounts):
+        raise SpendSummaryInputError("normalized_amount must contain Decimal values.")
+
+    return _sum_decimal_values(amounts)
+
+
+def build_spend_warnings(currency_breakdown: dict[str, Decimal]) -> tuple[str, ...]:
+    """Build deterministic warnings for potentially ambiguous summary output."""
+    warnings: list[str] = []
+
+    if len(currency_breakdown) > 1:
+        warnings.append(
+            "Multiple currencies detected. Totals are separated by currency and should not be combined implicitly."
+        )
+
+    return tuple(warnings)
+
+##BRICK 6:
 
 ##BRICK :
 
