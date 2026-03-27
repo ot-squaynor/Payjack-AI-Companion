@@ -552,6 +552,26 @@ def summarize_spend(
         applied_filters=applied_filters,
         warnings=warnings,
     )
-##BRICK :
-
+##BRICK 8: Serialization function for downstream orchestration
+def spend_summary_result_to_dict(result: SpendSummaryResult) -> dict[str, Any]:
+    """Serialize a spend summary result into a JSON-friendly dictionary."""
+    return {
+        "total_amount": str(result.total_amount),
+        "transaction_count": result.transaction_count,
+        "currency_breakdown": {
+            currency: str(amount)
+            for currency, amount in result.currency_breakdown.items()
+        },
+        "grouped_breakdown": [
+            {
+                "key": row.key,
+                "total_amount": str(row.total_amount),
+                "transaction_count": row.transaction_count,
+                "currency": row.currency,
+            }
+            for row in result.grouped_breakdown
+        ],
+        "applied_filters": dict(result.applied_filters),
+        "warnings": list(result.warnings),
+    }
 ##BRICK :
