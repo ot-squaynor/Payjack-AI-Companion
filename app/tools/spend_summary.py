@@ -196,8 +196,95 @@ def validate_required_columns(df: pd.DataFrame) -> None:
         raise SpendSummaryInputError(
             f"Input dataframe is missing required columns: {missing_columns}."
         )
-##BRICK :
+##BRICK 3: Filter application functions
+def _apply_account_filter(df: pd.DataFrame, account_ids: tuple[str, ...]) -> pd.DataFrame:
+    """Filter rows by account IDs when provided."""
+    if not account_ids:
+        return df
 
+    return df[df["account_id"].isin(account_ids)].copy()
+
+
+def _apply_category_filter(df: pd.DataFrame, categories: tuple[str, ...]) -> pd.DataFrame:
+    """Filter rows by canonical categories when provided."""
+    if not categories:
+        return df
+
+    return df[df["category"].isin(categories)].copy()
+
+
+def _apply_merchant_filter(df: pd.DataFrame, merchants: tuple[str, ...]) -> pd.DataFrame:
+    """Filter rows by normalized merchant labels when provided."""
+    if not merchants:
+        return df
+
+    return df[df["merchant"].isin(merchants)].copy()
+
+
+def _apply_direction_filter(df: pd.DataFrame, direction: str) -> pd.DataFrame:
+    """Filter rows by transaction direction."""
+    return df[df["direction"] == direction].copy()
+
+
+def _apply_date_range_filter(
+    df: pd.DataFrame,
+    start_date: str | None,
+    end_date: str | None,
+) -> pd.DataFrame:
+    """Filter rows by inclusive timestamp range."""
+    if start_date is None and end_date is None:
+        return df
+
+    if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+        timestamp_series = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    else:
+        timestamp_series = df["timestamp"]
+
+    if timestamp_series.isna().any():
+        raise SpendSummaryInputError(
+            "Input dataframe contains invalid timestamp values that cannot be filtered safely."
+        )
+
+    filtered_df = df.copy()
+    filtered_df["timestamp"] = timestamp_series
+
+    if start_date is not None:
+        start_ts = pd.Timestamp(start_date, tz="UTC")
+        filtered_df = filtered_df[filtered_df["timestamp"] >= start_ts]
+
+    if end_date is not None:
+        end_ts = pd.Timestamp(end_date, tz="UTC")
+        filtered_df = filtered_df[filtered_df["timestamp"] <= end_ts]
+
+    return filtered_df.copy()
+
+
+def apply_spend_filters(
+    df: pd.DataFrame,
+    request: SpendSummaryRequest,
+) -> pd.DataFrame:
+    """Apply deterministic spend-summary filters in a fixed order."""
+    filtered_df = df.copy()
+
+    filtered_df = _apply_account_filter(filtered_df, request.account_ids)
+    filtered_df = _apply_date_range_filter(filtered_df, request.start_date, request.end_date)
+    filtered_df = _apply_category_filter(filtered_df, request.categories)
+    filtered_df = _apply_merchant_filter(filtered_df, request.merchants)
+    filtered_df = _apply_direction_filter(filtered_df, request.direction)
+
+    logger.debug(
+        "Applied spend summary filters.",
+        extra={
+            "account_ids_count": len(request.account_ids),
+            "categories_count": len(request.categories),
+            "merchants_count": len(request.merchants),
+            "direction": request.direction,
+            "group_by": request.group_by,
+            "remaining_rows": len(filtered_df),
+        },
+    )
+
+    return filtered_df
 
 ##BRICK :
 
