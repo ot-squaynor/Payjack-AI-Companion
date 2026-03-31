@@ -25,12 +25,13 @@ logger = logging.getLogger(__name__)
 
 DEBIT = "debit"
 CREDIT = "credit"
+MOMO = "momo"
 
 DEFAULT_DIRECTION: str = DEBIT
 DEFAULT_GROUP_LIMIT: int = 10
 DEFAULT_SORT_DESCENDING: bool = True
 
-ALLOWED_DIRECTIONS: frozenset[str] = frozenset({DEBIT, CREDIT})
+ALLOWED_DIRECTIONS: frozenset[str] = frozenset({DEBIT, CREDIT, MOMO}) # Only allow explicit direction filtering for clarity and deterministic output structure.
 
 ALLOWED_GROUP_BY: frozenset[str] = frozenset(
     {
@@ -59,16 +60,16 @@ REQUIRED_COLUMNS: frozenset[str] = frozenset(
 
 
 class SpendSummaryError(Exception):
-    """Base exception for spend summary tool failures."""
+    """Base exception for spend summary tool failures.""" # General catch-all for any unexpected issues during processing, with more specific subclasses for input validation errors.
 
 
 class SpendSummaryInputError(SpendSummaryError):
-    """Raised when spend summary inputs are invalid."""
+    """Raised when spend summary inputs are invalid.""" # Raised for any issues with the input dataframe or request parameters that would prevent safe and deterministic summarization.
 
 
 @dataclass(frozen=True, slots=True)
 class SpendSummaryRequest:
-    """Deterministic request contract for spend summary queries."""
+    """Deterministic request contract for spend summary queries.""" # Encapsulates all normalized and validated parameters for a spend summary query, ensuring a consistent interface for the summarization logic and downstream orchestration.
 
     user_id: str | None = None
     account_ids: tuple[str, ...] = ()

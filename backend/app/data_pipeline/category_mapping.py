@@ -20,7 +20,7 @@ from typing import Mapping, Sequence
 import pandas as pd
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # Logger for this module, configured by the application entry point to integrate with overall logging strategy.
 
 
 class CategoryMappingError(Exception):
@@ -53,11 +53,11 @@ class CategoryMappingRule:
 class CategoryMappingConfig:
     """Configuration bundle for canonical category mapping behavior."""
 
-    allowed_categories: frozenset[str]
-    allowed_subcategories: frozenset[str]
-    merchant_alias_map: Mapping[str, str] = field(default_factory=dict)
-    category_alias_map: Mapping[str, str] = field(default_factory=dict)
-    rules: Sequence[CategoryMappingRule] = field(default_factory=tuple)
+    allowed_categories: frozenset[str] # Set of allowed canonical categories that can be assigned to transactions, used for validation and fallback logic.
+    allowed_subcategories: frozenset[str] # Set of allowed canonical subcategories that can be assigned to transactions, used for validation and fallback logic.
+    merchant_alias_map: Mapping[str, str] = field(default_factory=dict) # Optional mapping of normalized merchant values to standardized forms for more effective rule matching (e.g., "melcom gh" -> "melcom").
+    category_alias_map: Mapping[str, str] = field(default_factory=dict) # Optional mapping of normalized category values to standardized forms for more effective rule matching (e.g., "supermarket" -> "groceries").
+    rules: Sequence[CategoryMappingRule] = field(default_factory=tuple) # Ordered sequence of deterministic mapping rules, evaluated in order of priority (lowest number first) to assign canonical categories based on transaction attributes.
     default_category: str = "other"
     default_subcategory: str = "uncategorized"
 
@@ -81,7 +81,7 @@ COL_TIMESTAMP = "timestamp"
 COL_MERCHANT_NORMALIZED = "merchant_normalized"
 COL_CATEGORY_NORMALIZED = "category_normalized"
 
-REQUIRED_INPUT_COLUMNS: frozenset[str] = frozenset(
+REQUIRED_INPUT_COLUMNS: frozenset[str] = frozenset( # The category mapping logic relies on these normalized columns being present in the input dataframe, as they are used for rule evaluation and alias mapping. This set is used for upfront validation to ensure the input contract is met before processing.
     {
         COL_TRANSACTION_ID,
         COL_AMOUNT,
