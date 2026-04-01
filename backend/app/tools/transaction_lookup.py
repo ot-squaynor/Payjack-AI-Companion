@@ -807,4 +807,3 @@ def transaction_lookup_result_to_dict(
         "applied_filters": dict(result.applied_filters),
         "warnings": list(result.warnings),
     }
-##BRICK :
