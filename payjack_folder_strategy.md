@@ -6,8 +6,8 @@ The system separates information into two distinct layers:
 
 | Layer | Folder | Purpose |
 |------|------|------|
-| **Knowledge Retrieval (RAG)** | `kb/` | Documentation used by the LLM for answering informational questions |
-| **Structured Data (Tools)** | `data/` | Structured datasets queried directly by deterministic tools |
+| **Knowledge Retrieval (RAG)** | `backend/kb/` | Documentation used by the LLM for answering informational questions |
+| **Structured Data (Tools)** | `backend/data/` | Structured datasets queried directly by deterministic tools |
 
 This separation ensures:
 
@@ -17,7 +17,7 @@ This separation ensures:
 
 ---
 
-# 1. Knowledge Base (`kb/`)
+# 1. Knowledge Base (`backend/kb/`)
 
 The **Knowledge Base** contains documentation that the AI retrieves using **RAG (Retrieval Augmented Generation)**.
 
@@ -50,7 +50,7 @@ kb/
 ```
 ---
 
-# 1.2 `kb/raw_docs/`
+# 1.2 `backend/kb/raw_docs/`
 
 This folder contains the **original knowledge documents** before processing.
 
@@ -68,7 +68,7 @@ Files in this folder are later **cleaned, chunked, and embedded** into the vecto
 
 # 1.3 KB Category Folders
 
-## `kb/raw_docs/help_center/`
+## `backend/kb/raw_docs/help_center/`
 
 Contains user support articles and FAQs.
 
@@ -97,7 +97,7 @@ Example Markdown:
 ---
 
 
-## `kb/raw_docs/fees/`
+## `backend/kb/raw_docs/fees/`
 
 Contains explanations of product fees.
 
@@ -120,7 +120,7 @@ Fees may vary depending on the product tier.
 ```
 ---
 
-## `kb/raw_docs/limits/`
+## `backend/kb/raw_docs/limits/`
 
 Contains transaction and account limits.
 
@@ -142,7 +142,7 @@ Premium accounts: GHS 10,000/day
 ```
 ---
 
-## `kb/raw_docs/features/`
+## `backend/kb/raw_docs/features/`
 
 Contains product feature documentation.
 
@@ -167,7 +167,7 @@ The PayJack wallet allows users to:
 ```
 ---
 
-## `kb/raw_docs/errors/`
+## `backend/kb/raw_docs/errors/`
 
 Contains explanations for common errors.
 
@@ -202,7 +202,7 @@ Examples:
 Example:
 
 ```
-kb/raw_docs/help_center/help_center_full_export.md
+backend/kb/raw_docs/help_center/help_center_full_export.md
 ```
 
 The pipeline will later split these documents into smaller chunks during KB processing.
@@ -222,7 +222,7 @@ Example chunk:
 ```
 These files are used to generate the vector database.
 
-# 1.6 kb/metadata/
+# 1.6 backend/kb/metadata/
 
 Contains metadata about KB builds.
 
@@ -242,9 +242,9 @@ Example content:
   ]
 }
 ```
-# 2. Structured Data (data/)
+# 2. Structured Data (backend/data/)
 
-The ```data/``` directory contains structured datasets used by the assistant tools.
+The ```backend/data/``` directory contains structured datasets used by the assistant tools.
 
 These datasets contain financial information and may contain sensitive data.
 
@@ -272,7 +272,7 @@ data/
     ├── products/
     └── transactions/
 ```
-# 2.2 data/raw/
+# 2.2 backend/data/raw/
 
 Contains original dataset exports from banking systems or APIs.
 
@@ -285,7 +285,7 @@ Example:
 
 ```raw/transactions/transactions_2026_03_05.csv```
 
-# 2.3 data/processed/
+# 2.3 backend/data/processed/
 
 Contains standardized datasets created by the ingestion pipeline.
 
@@ -297,7 +297,7 @@ Example:
 
 ```processed/accounts.parquet```
 
-# 2.4 data/raw/transactions/
+# 2.4 backend/data/raw/transactions/
 
 Contains raw transaction exports.
 
@@ -350,7 +350,7 @@ Category: Groceries
 Weekly groceries
 ```
 
-# 2.5 data/raw/accounts/
+# 2.5 backend/data/raw/accounts/
 
 Example CSV:
 | account_id | account_name | account_type | currency |
@@ -389,7 +389,7 @@ Currency: GHS
 
 Primary everyday account used for standard transactions and payments.
 ```
-# 2.6 data/raw/fees_and_limits/
+# 2.6 backend/data/raw/fees_and_limits/
 
 Example CSV:
 | item_id                | item_type | value | unit | notes              |
@@ -444,7 +444,7 @@ Value: 5000 GHS
 Maximum ATM withdrawal allowed per day.
 ```
 
-# 2.7 data/raw/products/
+# 2.7 backend/data/raw/products/
 Example CSV
 | product_id    | product_name      | product_type |
 | ------------- | ----------------- | ------------ |
@@ -492,7 +492,7 @@ Example Markdown:
 
 Core wallet product used for storing funds, receiving money, and sending transfers.
 ```
-# 2.9 data/mock/
+# 2.9 backend/data/mock/
 
 
 Contains synthetic datasets used for testing.
@@ -503,7 +503,7 @@ mock/
 ├── mock_transactions.json
 ├── mock_accounts.json
 ```
-# 2.10 data/embeddings/
+# 2.10 backend/data/embeddings/
 
 Stores vector database persistence files.
 
@@ -513,15 +513,15 @@ embeddings/
 └── chroma/
 ```
 # 3. Summary
-| Folder               | Purpose                               |
-| -------------------- | ------------------------------------- |
-| `kb/raw_docs/`       | Source documents for RAG              |
-| `kb/processed_docs/` | Chunked documents used for embeddings |
-| `kb/metadata/`       | KB build metadata                     |
-| `data/raw/`          | Original dataset exports              |
-| `data/processed/`    | Standardized datasets used by tools   |
-| `data/mock/`         | Synthetic datasets for testing        |
-| `data/embeddings/`   | Vector database persistence           |
+| Folder                      | Purpose                               |
+|---------------------------|-------------------------------------|
+| `backend/kb/raw_docs/`    | Source documents for RAG              |
+| `backend/kb/processed_docs/` | Chunked documents used for embeddings |
+| `backend/kb/metadata/`    | KB build metadata                     |
+| `backend/data/raw/`       | Original dataset exports              |
+| `backend/data/processed/` | Standardized datasets used by tools   |
+| `backend/data/mock/`      | Synthetic datasets for testing        |
+| `backend/data/embeddings/`| Vector database persistence           |
 
 # Key Rule
 

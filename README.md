@@ -182,7 +182,7 @@ The repository is structured by **system responsibility**, not by technology.
 
 ### Folder Logic
 
-#### `/app`
+#### `/backend/app`
 Runtime application code deployed to ECS.
 
 Separated into:
@@ -196,7 +196,7 @@ Separated into:
 
 ---
 
-#### `/data`
+#### `/backend/data`
 Data layer (not all committed to Git).
 
 - `raw/` → corp exports
@@ -208,7 +208,7 @@ Separating raw and processed data prevents corruption and improves reproducibili
 
 ---
 
-#### `/kb`
+#### `/backend/kb`
 Knowledge base content.
 
 - Raw help center exports
@@ -230,16 +230,36 @@ Allows:
 
 ---
 
-#### `/infra`
-Infrastructure definitions.
+#### `/terraform`
 
-- ECS configs
+Infrastructure as Code (AWS).
+
+- ECS service definitions
 - IAM roles
-- Bedrock configs
-- KMS policies
-- S3 policies
+- Bedrock configuration
+- KMS encryption policies
+- S3 storage definitions
 
-Keeps infra version-controlled and auditable.
+Supports reproducible, auditable deployments.
+
+---
+
+#### `/frontend`
+
+User interface layer.
+
+- Chat interface for interacting with the AI companion
+- Displays tool outputs and RAG responses
+- Can be extended with session history and visual analytics
+
+---
+
+#### `/memory`
+
+Optional storage for session state.
+
+- Used for local development or conversational continuity
+- Not used for sensitive production persistence
 
 ---
 
@@ -385,50 +405,68 @@ This ensures:
 ```
 payjack-ai-companion/
 │
-├── app/                         # Core runtime (deployed to ECS)
-│   ├── api/                     # HTTP routes and schemas
-│   ├── data_pipeline/           # Data cleaning & normalization
-│   ├── llm/
-│   │   ├── autoregressive/      # Bedrock generative models
-│   │   └── embedding/           # Vector/encoding models
-│   ├── orchestrator/            # Intent routing & workflow logic
-│   ├── rag/                     # Retrieval-Augmented Generation logic
-│   ├── security/                # PII redaction & guardrails
-│   ├── telemetry/               # Logging, metrics, cost tracking
-│   └── tools/                   # Read-only financial tools
+├── backend/                     # Core backend runtime, config, datasets, KB, and tests
+│   ├── app/                     # Application runtime deployed via Docker/ECS
+│   │   ├── api/                 # HTTP routes and schemas
+│   │   ├── data_pipeline/       # Data cleaning, normalization, QC, and recurrence prep
+│   │   ├── llm/
+│   │   │   ├── autoregressive/  # Bedrock generative model clients and streaming logic
+│   │   │   └── embedding/       # Vector/encoding model clients and embedding utilities
+│   │   ├── orchestrator/        # Intent routing and workflow coordination
+│   │   ├── rag/                 # Retrieval-Augmented Generation logic
+│   │   ├── security/            # PII redaction, access control, and guardrails
+│   │   ├── telemetry/           # Logging, metrics, and cost tracking
+│   │   └── tools/               # Read-only deterministic financial tools
+│   │
+│   ├── data/                    # Backend-local structured datasets for tooling and dev
+│   │   ├── embeddings/          # Vectorized datasets / local vector persistence
+│   │   ├── mock/                # Synthetic test data
+│   │   ├── processed/           # Cleaned and standardized datasets
+│   │   └── raw/                 # Raw corp exports or source datasets
+│   │
+│   ├── kb/                      # Backend Knowledge Base for RAG
+│   │   ├── metadata/            # Retrieval metadata definitions and manifests
+│   │   ├── processed_docs/      # Cleaned and chunked Markdown docs
+│   │   └── raw_docs/            # Original documentation exports
+│   │
+│   ├── tests/                   # Backend system validation
+│   │   ├── evaluation/          # Eval scripts and test sets
+│   │   ├── fixtures/            # Mock inputs and sample payloads
+│   │   ├── integration/         # Route and end-to-end backend integration tests
+│   │   ├── llm_tests/           # Bedrock/LLM behavior and contract tests
+│   │   ├── rag_tests/           # Retrieval and metadata enforcement tests
+│   │   ├── red_team_tests/      # Prompt injection and policy abuse tests
+│   │   ├── tool_tests/          # Deterministic tool integrity tests
+│   │   └── unit/                # Low-level unit tests
+│   │
+│   ├── Dockerfile               # Backend container definition
+│   ├── requirements.txt         # Backend Python dependencies
+│   └── .env.example             # Backend environment variable template
 │
-├── data/                        # Local development datasets
-│   ├── embeddings/              # Vectorized datasets
-│   ├── mock/                    # Synthetic test data
-│   ├── processed/               # Cleaned datasets
-│   └── raw/                     # Raw corp or exported datasets
+├── frontend/                    # UI layer for chat and user interaction
+│   ├── app/                     # Frontend app routes and pages
+│   └── public/                  # Static frontend assets
 │
-├── kb/                          # Knowledge Base for RAG
-│   ├── metadata/                # Retrieval metadata definitions
-│   ├── processed_docs/          # Cleaned Markdown files
-│   └── raw_docs/                # Original documentation exports
+├── memory/                      # Optional local/session memory storage
 │
-├── infra/                       # AWS infrastructure references
-│   ├── bedrock/
-│   ├── ecs/
-│   ├── iam/
-│   ├── kms/
-│   └── s3/
+├── scripts/                     # Operational and deployment utilities
 │
-├── scripts/                     # Operational utilities
+├── terraform/                   # Infrastructure as Code for AWS resources
+│   ├── modules/
+│   │   ├── bedrock/             # Bedrock-related infra modules
+│   │   ├── ecs/                 # ECS service/task infra modules
+│   │   ├── iam/                 # IAM roles and policy modules
+│   │   ├── kms/                 # KMS encryption modules
+│   │   └── s3/                  # S3 bucket and storage modules
+│   ├── main.tf                  # Root Terraform resources
+│   ├── outputs.tf               # Terraform outputs
+│   ├── terraform.tfvars         # Default Terraform variable values
+│   ├── variables.tf             # Terraform input variables
+│   └── versions.tf              # Terraform/provider version constraints
 │
-├── tests/                       # System validation
-│   ├── integration/
-│   ├── llm_tests/
-│   ├── rag_tests/
-│   ├── tool_tests/
-│   ├── red_team_tests/
-│   └── unit/
+├── prototype/                   # Experimental and non-production work
 │
-├── Dockerfile                   # ECS container definition
-├── requirements.txt             # Python dependencies
-├── .env.example                 # Environment variable template
-└── README.md
+└── README.md                    # Project overview and architecture guide
 ```
 ---
 
