@@ -1,13 +1,18 @@
-# app/orchestrator/context_builder.py
-# 2026-02-25
-"""Purpose: Build the model context deterministically:
+from __future__ import annotations
 
-user identity + permissions
+from typing import Any
 
-tool outputs
+from app.llm.prompts.tool_summarizer_prompt import build_tool_summarizer_prompt
 
-retrieval snippets
 
-safety constraints
-
-conversation summary strategy (if any)"""
+def build_generation_prompt(
+    *,
+    user_message: str,
+    tool_results: list[dict[str, Any]],
+    citations: list[dict[str, Any]],
+) -> str:
+    return build_tool_summarizer_prompt(
+        user_message=user_message,
+        tool_results=tool_results,
+        citations=citations,
+    )
