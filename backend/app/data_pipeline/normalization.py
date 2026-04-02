@@ -36,7 +36,6 @@ Non-goals:
 - No LLM/AWS/tool/runtime orchestration logic
 """
 ##BRICK 1: Define NormalizationConfig dataclass for configurable normalization behavior.
-from __future__ import annotations
 
 import logging
 import re

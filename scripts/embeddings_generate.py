@@ -1,15 +1,31 @@
+# scripts/embeddings_generate.py
+# 2026-04-02
+"""Purpose: Generate deterministic placeholder embedding artifacts for local KB testing."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports, repository bootstrap, and env loading
 import argparse
 import hashlib
 import json
 import logging
 from pathlib import Path
+import sys
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from backend.app.env import load_local_env
+
+
+load_local_env()
 logger = logging.getLogger(__name__)
 
 
+##BRICK 2: CLI parsing and deterministic embedding helpers
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate deterministic placeholder embedding metadata.")
     parser.add_argument("--chunks-path", default="backend/kb/processed_docs/chunks.jsonl")
@@ -26,7 +42,9 @@ def _token_hashes(text: str) -> list[int]:
     return hashes
 
 
+##BRICK 3: CLI entrypoint
 def main() -> None:
+    load_local_env()
     args = parse_args()
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),

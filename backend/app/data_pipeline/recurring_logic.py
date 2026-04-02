@@ -18,7 +18,6 @@ signals such as cadence, confidence, and grouping metadata for downstream
 financial tools and quality checks.
 """
 #Import statements
-from __future__ import annotations
 
 from dataclasses import dataclass
 import logging

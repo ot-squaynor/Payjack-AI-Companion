@@ -1,11 +1,17 @@
+# app/api/routes_health.py
+# 2026-04-02
+"""Purpose: Expose backend health and readiness endpoints for local and deployed runtimes."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports and router definition
 from fastapi import APIRouter, HTTPException, Request
 
 
 router = APIRouter(tags=["health"])
 
 
+##BRICK 2: Health and readiness routes
 @router.get("/health")
 async def health(request: Request) -> dict[str, object]:
     dependencies = request.app.state.dependencies

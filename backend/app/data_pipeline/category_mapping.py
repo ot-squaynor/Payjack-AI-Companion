@@ -2,16 +2,13 @@
 # 2026-02-26
 """Purpose: Map raw document categories (e.g., 'policy', 'help') to standardized tags for consistent retrieval and filtering."""
 
-##BRICK 1: Header, imports, logger, exceptions, and config dataclasses
-"""
-Deterministic category mapping for normalized transaction data.
-
-This module converts normalized transaction category signals into a canonical
-business taxonomy that downstream recurrence logic, quality checks, and
-financial tools can rely on.
-"""
-
 from __future__ import annotations
+
+##BRICK 1: Header, imports, logger, exceptions, and config dataclasses
+# Deterministic category mapping for normalized transaction data.
+# This module converts normalized transaction category signals into a canonical
+# business taxonomy that downstream recurrence logic, quality checks, and
+# financial tools can rely on.
 
 from dataclasses import dataclass, field
 import logging

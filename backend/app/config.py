@@ -1,10 +1,21 @@
+# app/config.py
+# 2026-04-02
+"""Purpose: Resolve Payjack runtime settings from shell variables and the local backend `.env` file."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports and local env bootstrap
 from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from app.env import load_local_env
 
+
+load_local_env()
+
+
+##BRICK 2: Primitive environment parsing helpers
 def _get_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -26,6 +37,7 @@ def _get_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+##BRICK 3: Runtime settings contract
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_name: str
@@ -59,6 +71,9 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        """Build the application settings object from the effective environment."""
+
+        load_local_env()
         backend_root = Path(__file__).resolve().parents[1]
         return cls(
             app_name=os.getenv("APP_NAME", "payjack-ai-companion"),

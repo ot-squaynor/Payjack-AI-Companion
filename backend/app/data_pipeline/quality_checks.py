@@ -3,16 +3,13 @@
 """Purpose: Gatekeeping (schema validation, missing fields, drift detection, doc quality, duplicate chunks).
 This is a big win for fintech: it prevents bad KB content from poisoning retrieval."""
 
-##BRICK 1:
-"""
-Deterministic quality checks for processed transaction data.
-
-This module validates the final processed dataframe after normalization,
-category mapping, and recurrence detection, producing structured and
-auditable quality-check findings.
-"""
-
 from __future__ import annotations
+
+##BRICK 1:
+# Deterministic quality checks for processed transaction data.
+# This module validates the final processed dataframe after normalization,
+# category mapping, and recurrence detection, producing structured and
+# auditable quality-check findings.
 
 from dataclasses import dataclass, field
 import logging

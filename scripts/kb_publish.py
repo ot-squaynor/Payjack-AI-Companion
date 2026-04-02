@@ -1,16 +1,32 @@
+# scripts/kb_publish.py
+# 2026-04-02
+"""Purpose: Publish processed KB artifacts and metadata to the configured S3 bucket."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports, repository bootstrap, and env loading
 import argparse
 import logging
 from pathlib import Path
+import sys
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from backend.app.env import load_local_env
+
+
+load_local_env()
 logger = logging.getLogger(__name__)
 
 
+##BRICK 2: CLI parsing and S3 upload helpers
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Upload processed KB artifacts to S3.")
     parser.add_argument("--bucket", required=True)
@@ -33,7 +49,9 @@ def _upload_directory(s3_client, *, bucket: str, prefix: str, directory: Path) -
             raise RuntimeError(f"Failed to upload {path} to s3://{bucket}/{key}: {exc}") from exc
 
 
+##BRICK 3: CLI entrypoint
 def main() -> None:
+    load_local_env()
     args = parse_args()
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),

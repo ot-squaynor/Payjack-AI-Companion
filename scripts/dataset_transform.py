@@ -1,5 +1,10 @@
+# scripts/dataset_transform.py
+# 2026-04-02
+"""Purpose: Build processed runtime artifacts from raw Payjack datasets and optionally publish them to S3."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports, repository bootstrap, and env loading
 import argparse
 from datetime import datetime, timezone
 import json
@@ -34,11 +39,14 @@ from backend.app.data_pipeline.processed_schema import (
 )
 from backend.app.data_pipeline.quality_checks import quality_check_report_to_dict, run_quality_checks
 from backend.app.data_pipeline.recurring_logic import detect_recurring_transactions, recurrence_summary
+from backend.app.env import load_local_env
 
 
+load_local_env()
 logger = logging.getLogger(__name__)
 
 
+##BRICK 2: CLI argument mapping and dataset source helpers
 DATASET_FLAG_MAP: dict[str, tuple[str, str]] = {
     "transactions": ("transactions_bucket", "transactions_prefix"),
     "accounts": ("accounts_bucket", "accounts_prefix"),
@@ -100,6 +108,7 @@ def _resolve_source_config(
     )
 
 
+##BRICK 3: Raw bundle loading and deterministic enrichment
 def _load_bundle(args: argparse.Namespace) -> dict[str, pd.DataFrame]:
     bundle: dict[str, pd.DataFrame] = {}
     specs = ingestion._specs()
@@ -165,6 +174,7 @@ def _finalize_transactions(transactions_df: pd.DataFrame) -> pd.DataFrame:
     return finalized_df
 
 
+##BRICK 4: Artifact persistence and optional S3 publishing
 def _write_dataset_artifacts(
     bundle: dict[str, pd.DataFrame],
     output_dir: Path,
@@ -242,7 +252,9 @@ def _upload_outputs_to_s3(
     )
 
 
+##BRICK 5: CLI entrypoint
 def main() -> None:
+    load_local_env()
     args = parse_args()
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),

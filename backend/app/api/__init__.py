@@ -1,3 +1,8 @@
+# app/api/__init__.py
+# 2026-04-02
+"""Purpose: Build the top-level API router for Payjack runtime endpoints."""
+
+##BRICK 1: Router composition
 from fastapi import APIRouter
 
 from app.api.routes_chat import router as chat_router

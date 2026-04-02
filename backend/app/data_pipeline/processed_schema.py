@@ -1,5 +1,10 @@
+# app/data_pipeline/processed_schema.py
+# 2026-04-02
+"""Purpose: Define the processed dataset manifest contract used by local runtime and deployment flows."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports, constants, and manifest dataclasses
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -41,6 +46,7 @@ class ProcessedArtifactManifest:
     qc_summary: QualityCheckSummary | None = None
 
 
+##BRICK 2: Manifest construction and serialization helpers
 def build_dataset_artifact(
     *,
     name: str,
@@ -142,6 +148,7 @@ def manifest_from_dict(payload: dict[str, Any]) -> ProcessedArtifactManifest:
     )
 
 
+##BRICK 3: Manifest persistence helpers
 def write_manifest(
     manifest: ProcessedArtifactManifest,
     output_dir: Path | str,

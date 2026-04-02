@@ -3,16 +3,13 @@
 """Purpose: Fetch transactions (by user, time window, filters).
 Audit note: Must enforce access control here or in a shared data access layer."""
 
-##BRICK 1: Define the purpose and scope of the transaction lookup tool, emphasizing its deterministic nature and read-only access to pre-processed transaction data. Highlight that it does not perform I/O, LLM calls, RAG retrieval, or mutate the input dataframe.
-"""
-Deterministic transaction lookup tool for structured transaction data.
-
-This module retrieves read-only transaction records from already-processed
-transaction datasets. It does not perform I/O, LLM calls, RAG retrieval,
-or mutation of the input dataframe.
-"""
-
 from __future__ import annotations
+
+##BRICK 1: Define the purpose and scope of the transaction lookup tool, emphasizing its deterministic nature and read-only access to pre-processed transaction data. Highlight that it does not perform I/O, LLM calls, RAG retrieval, or mutate the input dataframe.
+# Deterministic transaction lookup tool for structured transaction data.
+# This module retrieves read-only transaction records from already-processed
+# transaction datasets. It does not perform I/O, LLM calls, RAG retrieval,
+# or mutation of the input dataframe.
 
 from dataclasses import dataclass, field
 from decimal import Decimal

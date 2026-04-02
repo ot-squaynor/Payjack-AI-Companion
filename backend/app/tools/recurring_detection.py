@@ -3,17 +3,14 @@
 """Purpose: Determine recurring payments.
 Duplication alert: coordinate with data_pipeline/recurring_logic.py as mentioned."""
 
-##BRICK 1: Define the purpose and scope of the recurring detection tool, emphasizing its deterministic nature and read-only access to pre-processed recurring payment data. Highlight that it does not perform I/O, LLM calls, RAG retrieval, or mutate the input dataframe.
-"""
-Deterministic recurring-payment retrieval tool for recurrence-enriched
-structured transaction data.
-
-This module reads recurrence fields that were already computed upstream in the
-data pipeline. It does not perform I/O, LLM calls, RAG retrieval, or mutation
-of the input dataframe.
-"""
-
 from __future__ import annotations
+
+##BRICK 1: Define the purpose and scope of the recurring detection tool, emphasizing its deterministic nature and read-only access to pre-processed recurring payment data. Highlight that it does not perform I/O, LLM calls, RAG retrieval, or mutate the input dataframe.
+# Deterministic recurring-payment retrieval tool for recurrence-enriched
+# structured transaction data.
+# This module reads recurrence fields that were already computed upstream in the
+# data pipeline. It does not perform I/O, LLM calls, RAG retrieval, or mutation
+# of the input dataframe.
 
 from dataclasses import dataclass, field
 from decimal import Decimal

@@ -1,5 +1,10 @@
+# app/api/schemas.py
+# 2026-04-02
+"""Purpose: Define the request and response models shared by the Payjack API and frontend."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports and shared response models
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,6 +37,7 @@ class Refusal(BaseModel):
     message: str
 
 
+##BRICK 2: Chat request and response envelopes
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

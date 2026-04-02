@@ -1,5 +1,10 @@
+# backend/tests/conftest.py
+# 2026-04-02
+"""Purpose: Provide shared backend fixtures for local runtime, repository, and API tests."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports, path bootstrap, and shared env loading
 import importlib
 import json
 from pathlib import Path
@@ -23,8 +28,13 @@ from app.data_pipeline.processed_schema import (
     build_qc_summary,
     write_manifest,
 )
+from app.env import load_local_env
 
 
+load_local_env()
+
+
+##BRICK 2: Synthetic processed dataset fixtures
 @pytest.fixture
 def sample_transactions_df() -> pd.DataFrame:
     return pd.DataFrame(
@@ -179,6 +189,7 @@ def processed_test_assets(
     }
 
 
+##BRICK 3: Test environment and API client fixtures
 @pytest.fixture
 def configured_test_env(
     monkeypatch: pytest.MonkeyPatch,

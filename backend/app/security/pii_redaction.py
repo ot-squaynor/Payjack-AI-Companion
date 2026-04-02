@@ -1,5 +1,10 @@
+# app/security/pii_redaction.py
+# 2026-04-02
+"""Purpose: Redact common PII patterns before prompts or logs leave the deterministic backend path."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports and redaction patterns
 import re
 from typing import Any
 
@@ -9,10 +14,13 @@ PHONE_RE = re.compile(r"(?<!\d)(?:\+?\d[\d -]{7,}\d)(?!\d)")
 LONG_DIGIT_RE = re.compile(r"\b\d{10,19}\b")
 
 
+##BRICK 2: Recursive text and payload redaction helpers
 def redact_text(value: str) -> str:
     redacted = EMAIL_RE.sub("[redacted-email]", value)
-    redacted = PHONE_RE.sub("[redacted-phone]", redacted)
+    # Long uninterrupted digit strings should be classified as account/card-like
+    # identifiers before phone matching can absorb them.
     redacted = LONG_DIGIT_RE.sub("[redacted-number]", redacted)
+    redacted = PHONE_RE.sub("[redacted-phone]", redacted)
     return redacted
 
 

@@ -1,17 +1,33 @@
+# scripts/kb_build.py
+# 2026-04-02
+"""Purpose: Chunk local KB source documents into retrieval-ready JSONL artifacts."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports, repository bootstrap, and env loading
 import argparse
 from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
+import sys
 
 from openpyxl import load_workbook
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from backend.app.env import load_local_env
+
+
+load_local_env()
 logger = logging.getLogger(__name__)
 
 
+##BRICK 2: CLI parsing and document readers
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build chunked KB artifacts from local raw docs.")
     parser.add_argument("--input-dir", default="backend/kb/raw_docs")
@@ -45,6 +61,7 @@ def _read_text_document(path: Path) -> str:
     raise ValueError(f"Unsupported KB document format: {path.suffix}")
 
 
+##BRICK 3: Chunk construction helpers
 def _split_into_chunks(text: str, *, chunk_size: int) -> list[str]:
     paragraphs = [paragraph.strip() for paragraph in text.splitlines() if paragraph.strip()]
     chunks: list[str] = []
@@ -67,7 +84,9 @@ def _split_into_chunks(text: str, *, chunk_size: int) -> list[str]:
     return chunks
 
 
+##BRICK 4: CLI entrypoint
 def main() -> None:
+    load_local_env()
     args = parse_args()
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),

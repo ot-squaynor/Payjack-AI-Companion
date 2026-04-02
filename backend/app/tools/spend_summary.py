@@ -2,16 +2,13 @@
 # 2026-02-25
 """Purpose: Deterministic aggregation (category totals, merchants, trends).
 Critical rule: LLM must not change these outputs."""
-##BRICK 1: Context and imports
-"""
-Deterministic spend summary tool for structured transaction data.
-
-This module computes read-only spend aggregates from already-processed
-transaction datasets. It does not perform I/O, LLM calls, RAG retrieval,
-or any mutation of the input dataframe.
-"""
-
 from __future__ import annotations
+
+##BRICK 1: Context and imports
+# Deterministic spend summary tool for structured transaction data.
+# This module computes read-only spend aggregates from already-processed
+# transaction datasets. It does not perform I/O, LLM calls, RAG retrieval,
+# or any mutation of the input dataframe.
 
 from dataclasses import dataclass, field
 from decimal import Decimal

@@ -1,5 +1,10 @@
+# app/repository/processed_store.py
+# 2026-04-02
+"""Purpose: Load processed datasets from local disk or S3 behind a repository-style runtime interface."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports, contracts, and repository error types
 from io import BytesIO
 import json
 from pathlib import Path
@@ -21,6 +26,7 @@ class ProcessedStoreError(RuntimeError):
     """Raised when processed artifacts cannot be loaded safely."""
 
 
+##BRICK 2: Manifest and dataset loading helpers
 class ProcessedStore:
     def __init__(
         self,
@@ -139,6 +145,7 @@ class ProcessedStore:
     def get_manifest(self) -> ProcessedArtifactManifest:
         return self.load_manifest()
 
+    ##BRICK 3: Repository readiness checks
     def healthcheck(self) -> RepositoryHealth:
         try:
             manifest = self.load_manifest()

@@ -1,5 +1,10 @@
+# app/dependencies.py
+# 2026-04-02
+"""Purpose: Assemble the runtime dependency graph for the Payjack backend."""
+
 from __future__ import annotations
 
+##BRICK 1: Imports and dependency container contract
 from dataclasses import dataclass
 
 from app.config import Settings
@@ -21,6 +26,7 @@ class AppDependencies:
     workflow_engine: WorkflowEngine
 
 
+##BRICK 2: Dependency graph construction
 def build_dependencies(settings: Settings | None = None) -> AppDependencies:
     resolved_settings = settings or Settings.from_env()
     store = ProcessedStore(
