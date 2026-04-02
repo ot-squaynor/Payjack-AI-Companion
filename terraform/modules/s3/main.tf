@@ -1,0 +1,166 @@
+data "aws_caller_identity" "current" {}
+
+locals {
+  bucket_prefix = lower(replace("${var.name_prefix}-${var.environment}-${data.aws_caller_identity.current.account_id}", "_", "-"))
+}
+
+data "aws_s3_bucket" "external_transactions" {
+  count  = var.external_transactions_bucket_name == null ? 0 : 1
+  bucket = var.external_transactions_bucket_name
+}
+
+data "aws_s3_bucket" "external_accounts" {
+  count  = var.external_accounts_bucket_name == null ? 0 : 1
+  bucket = var.external_accounts_bucket_name
+}
+
+data "aws_s3_bucket" "external_fees" {
+  count  = var.external_fees_bucket_name == null ? 0 : 1
+  bucket = var.external_fees_bucket_name
+}
+
+data "aws_s3_bucket" "external_products" {
+  count  = var.external_products_bucket_name == null ? 0 : 1
+  bucket = var.external_products_bucket_name
+}
+
+data "aws_s3_bucket" "external_metadata" {
+  count  = var.external_metadata_bucket_name == null ? 0 : 1
+  bucket = var.external_metadata_bucket_name
+}
+
+resource "aws_s3_bucket" "processed_artifacts" {
+  bucket        = "${local.bucket_prefix}-processed"
+  force_destroy = var.force_destroy
+  tags          = var.tags
+}
+
+resource "aws_s3_bucket" "kb_source" {
+  bucket        = "${local.bucket_prefix}-kb-source"
+  force_destroy = var.force_destroy
+  tags          = var.tags
+}
+
+resource "aws_s3_bucket" "kb_artifacts" {
+  bucket        = "${local.bucket_prefix}-kb-artifacts"
+  force_destroy = var.force_destroy
+  tags          = var.tags
+}
+
+resource "aws_s3_bucket" "frontend" {
+  count         = var.create_frontend_bucket ? 1 : 0
+  bucket        = "${local.bucket_prefix}-frontend"
+  force_destroy = var.force_destroy
+  tags          = var.tags
+}
+
+resource "aws_s3_bucket_versioning" "processed_artifacts" {
+  bucket = aws_s3_bucket.processed_artifacts.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "kb_source" {
+  bucket = aws_s3_bucket.kb_source.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "kb_artifacts" {
+  bucket = aws_s3_bucket.kb_artifacts.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "frontend" {
+  count  = var.create_frontend_bucket ? 1 : 0
+  bucket = aws_s3_bucket.frontend[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "processed_artifacts" {
+  bucket = aws_s3_bucket.processed_artifacts.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_public_access_block" "kb_source" {
+  bucket = aws_s3_bucket.kb_source.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_public_access_block" "kb_artifacts" {
+  bucket = aws_s3_bucket.kb_artifacts.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_public_access_block" "frontend" {
+  count  = var.create_frontend_bucket ? 1 : 0
+  bucket = aws_s3_bucket.frontend[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "processed_artifacts" {
+  bucket = aws_s3_bucket.processed_artifacts.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "kb_source" {
+  bucket = aws_s3_bucket.kb_source.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "kb_artifacts" {
+  bucket = aws_s3_bucket.kb_artifacts.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
+  count  = var.create_frontend_bucket ? 1 : 0
+  bucket = aws_s3_bucket.frontend[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
