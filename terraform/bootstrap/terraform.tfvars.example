@@ -2,3 +2,8 @@ project_name        = "payjack-ai-companion"
 tf_state_bucket_name = "payjack-ai-companion-tf-state-REPLACE_ME"
 tf_lock_table_name   = "payjack-ai-companion-tf-locks"
 ecr_repository_name  = "payjack-ai-companion-backend"
+
+# Optional overrides. If omitted, Terraform will derive names from the
+# project name and current AWS account id.
+shared_kb_source_bucket_name    = "payjack-ai-companion-REPLACE_ME-kb-source"
+shared_kb_artifacts_bucket_name = "payjack-ai-companion-REPLACE_ME-kb-artifacts"

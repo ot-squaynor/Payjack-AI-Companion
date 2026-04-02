@@ -38,6 +38,8 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
       APP_NAME: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
       ECR_REPOSITORY_NAME: ${{ vars.ECR_REPOSITORY_NAME != '' && vars.ECR_REPOSITORY_NAME || 'payjack-ai-companion-backend' }}
+      SHARED_KB_SOURCE_BUCKET: ${{ vars.SHARED_KB_SOURCE_BUCKET }}
+      SHARED_KB_ARTIFACTS_BUCKET: ${{ vars.SHARED_KB_ARTIFACTS_BUCKET }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
       TF_VAR_app_name: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
@@ -82,10 +84,20 @@ jobs:
           test -n "${TF_LOCK_TABLE}" || { echo "TF_LOCK_TABLE must be set."; exit 1; }
           ECR_REPOSITORY_URL="$(aws ecr describe-repositories --repository-names "${ECR_REPOSITORY_NAME}" --query 'repositories[0].repositoryUri' --output text)"
           test -n "${ECR_REPOSITORY_URL}" || { echo "Failed to resolve ECR repository URL."; exit 1; }
+          ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          PROJECT_SLUG="$(echo "${APP_NAME}" | tr '[:upper:]_' '[:lower:]-')"
+          if [[ -z "${SHARED_KB_SOURCE_BUCKET}" ]]; then
+            SHARED_KB_SOURCE_BUCKET="${PROJECT_SLUG}-${ACCOUNT_ID}-kb-source"
+          fi
+          if [[ -z "${SHARED_KB_ARTIFACTS_BUCKET}" ]]; then
+            SHARED_KB_ARTIFACTS_BUCKET="${PROJECT_SLUG}-${ACCOUNT_ID}-kb-artifacts"
+          fi
           echo "TF_VAR_environment=${TARGET_ENVIRONMENT}" >> "$GITHUB_ENV"
           echo "TF_VAR_ecr_repository_url=${ECR_REPOSITORY_URL}" >> "$GITHUB_ENV"
           echo "TF_VAR_image_tag=plan-${GITHUB_SHA::12}" >> "$GITHUB_ENV"
           echo "TF_VAR_allow_force_destroy=false" >> "$GITHUB_ENV"
+          echo "TF_VAR_shared_kb_source_bucket_name=${SHARED_KB_SOURCE_BUCKET}" >> "$GITHUB_ENV"
+          echo "TF_VAR_shared_kb_artifacts_bucket_name=${SHARED_KB_ARTIFACTS_BUCKET}" >> "$GITHUB_ENV"
 
       - name: Validate external buckets
         run: |
@@ -105,6 +117,8 @@ jobs:
           check_bucket "fees bucket" "${TF_VAR_external_fees_bucket_name}"
           check_bucket "products bucket" "${TF_VAR_external_products_bucket_name}"
           check_bucket "metadata bucket" "${TF_VAR_external_metadata_bucket_name}"
+          check_bucket "shared KB source bucket" "${TF_VAR_shared_kb_source_bucket_name}"
+          check_bucket "shared KB artifacts bucket" "${TF_VAR_shared_kb_artifacts_bucket_name}"
 
       - name: Terraform init
         working-directory: terraform

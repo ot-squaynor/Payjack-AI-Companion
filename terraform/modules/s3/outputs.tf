@@ -7,19 +7,19 @@ output "processed_artifacts_bucket_arn" {
 }
 
 output "kb_source_bucket_name" {
-  value = aws_s3_bucket.kb_source.bucket
+  value = var.shared_kb_source_bucket_name
 }
 
 output "kb_source_bucket_arn" {
-  value = aws_s3_bucket.kb_source.arn
+  value = var.shared_kb_source_bucket_name == null ? null : data.aws_s3_bucket.shared_kb_source[0].arn
 }
 
 output "kb_artifacts_bucket_name" {
-  value = aws_s3_bucket.kb_artifacts.bucket
+  value = var.shared_kb_artifacts_bucket_name
 }
 
 output "kb_artifacts_bucket_arn" {
-  value = aws_s3_bucket.kb_artifacts.arn
+  value = var.shared_kb_artifacts_bucket_name == null ? null : data.aws_s3_bucket.shared_kb_artifacts[0].arn
 }
 
 output "frontend_bucket_name" {

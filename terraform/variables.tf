@@ -67,6 +67,16 @@ variable "create_frontend_bucket" {
   default = false
 }
 
+variable "shared_kb_source_bucket_name" {
+  type    = string
+  default = null
+}
+
+variable "shared_kb_artifacts_bucket_name" {
+  type    = string
+  default = null
+}
+
 variable "external_transactions_bucket_name" {
   type    = string
   default = null

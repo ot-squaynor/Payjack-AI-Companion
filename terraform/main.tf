@@ -43,6 +43,8 @@ module "s3" {
   environment                       = var.environment
   force_destroy                     = local.force_destroy
   create_frontend_bucket            = var.create_frontend_bucket
+  shared_kb_source_bucket_name      = var.shared_kb_source_bucket_name
+  shared_kb_artifacts_bucket_name   = var.shared_kb_artifacts_bucket_name
   external_transactions_bucket_name = var.external_transactions_bucket_name
   external_accounts_bucket_name     = var.external_accounts_bucket_name
   external_fees_bucket_name         = var.external_fees_bucket_name
@@ -109,10 +111,10 @@ module "ecs" {
     {
       PROCESSED_S3_BUCKET         = module.s3.processed_artifacts_bucket_name
       MANAGED_PROCESSED_BUCKET    = module.s3.processed_artifacts_bucket_name
-      MANAGED_KB_SOURCE_BUCKET    = module.s3.kb_source_bucket_name
-      MANAGED_KB_ARTIFACTS_BUCKET = module.s3.kb_artifacts_bucket_name
-      KB_S3_BUCKET                = module.s3.kb_artifacts_bucket_name
-      KB_S3_PREFIX                = "processed_docs"
+      MANAGED_KB_SOURCE_BUCKET    = coalesce(module.s3.kb_source_bucket_name, "")
+      MANAGED_KB_ARTIFACTS_BUCKET = coalesce(module.s3.kb_artifacts_bucket_name, "")
+      KB_S3_BUCKET                = coalesce(module.s3.kb_artifacts_bucket_name, "")
+      KB_S3_PREFIX                = "${var.environment}/processed_docs"
     }
   )
   secret_arns = var.secret_arns

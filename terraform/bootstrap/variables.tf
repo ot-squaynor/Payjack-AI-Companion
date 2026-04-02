@@ -16,6 +16,16 @@ variable "ecr_repository_name" {
   default = "payjack-ai-companion-backend"
 }
 
+variable "shared_kb_source_bucket_name" {
+  type    = string
+  default = null
+}
+
+variable "shared_kb_artifacts_bucket_name" {
+  type    = string
+  default = null
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
