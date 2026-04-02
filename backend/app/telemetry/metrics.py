@@ -1,3 +1,17 @@
-# app/telemetry/metrics.py
-# 2026-02-25
-"""Purpose: Latency, error rate, tool invocation counts, retrieval hit rate."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+import time
+
+
+@dataclass(frozen=True, slots=True)
+class DurationMetric:
+    name: str
+    milliseconds: float
+
+
+def measure_duration(name: str, start_time: float) -> DurationMetric:
+    return DurationMetric(
+        name=name,
+        milliseconds=round((time.perf_counter() - start_time) * 1000, 3),
+    )
