@@ -1,4 +1,8 @@
-# app/llm/prompts/routing_prompt.py
-# 2026-02-25
-"""Purpose: Prompt for routing user queries to appropriate tools.
-Audit note: Must be deterministic and logged (for audit + cost control)."""
+from __future__ import annotations
+
+
+def build_routing_prompt(message: str) -> str:
+    return (
+        "Classify the user request into one of: tool, rag, hybrid, clarify, refuse. "
+        f"Message: {message}"
+    )

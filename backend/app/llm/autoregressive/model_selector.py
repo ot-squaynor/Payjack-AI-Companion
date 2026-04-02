@@ -1,4 +1,18 @@
-# app/llm/autoregressive/model_selector.py
-# 2026-02-25
-"""Purpose: Choose model by intent/context (e.g., cheaper model for simple formatting; stronger model for complex multi-tool explanation).
-Audit note: Keep selection deterministic and logged (for audit + cost control)."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from app.config import Settings
+
+
+@dataclass(frozen=True, slots=True)
+class SelectedModel:
+    model_id: str
+    reason: str
+
+
+def select_model(*, route: str, settings: Settings) -> SelectedModel:
+    return SelectedModel(
+        model_id=settings.bedrock_model_id,
+        reason=f"default_model_for_{route}",
+    )
