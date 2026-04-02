@@ -187,3 +187,24 @@ local/
 
 .env
 **/.env
+
+# Next.js / frontend build outputs
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Terraform local state and caches
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local processed and KB artifacts
+backend/data/processed/
+backend/kb/processed_docs/
+backend/kb/metadata/
