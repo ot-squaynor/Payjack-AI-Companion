@@ -1,12 +1,23 @@
-# app/api/routes_chat.py
-# 2026-02-25
-"""Purpose: /chat endpoint (or similar), request validation, session handling, calling orchestrator.
-Must enforce:
+from __future__ import annotations
 
-Auth context is present (user identity, roles, tenant).
+from fastapi import APIRouter, Request
 
-Request schema validation (no raw dicts).
+from app.api.schemas import ChatRequest, ChatResponse
+from app.errors import to_http_exception
+from app.security.auth_context import AuthContext
 
-Rate limiting / size limits (anti prompt-bomb).
 
-No direct DB calls; no direct Bedrock calls """
+router = APIRouter(tags=["chat"])
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
+    dependencies = request.app.state.dependencies
+    auth_context = AuthContext.from_headers(request.headers)
+    try:
+        return dependencies.workflow_engine.handle_chat(
+            payload,
+            auth_context=auth_context,
+        )
+    except Exception as exc:  # pragma: no cover - exercised in integration tests
+        raise to_http_exception(exc) from exc

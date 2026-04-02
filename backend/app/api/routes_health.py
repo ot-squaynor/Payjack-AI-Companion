@@ -1,9 +1,36 @@
-# app/api/routes_health.py
-# 2026-02-25
-#
-"""Purpose: /health for ECS health checks, maybe /ready for readiness.
-Audit notes:
+from __future__ import annotations
 
-Health should be cheap and not depend on Bedrock.
+from fastapi import APIRouter, HTTPException, Request
 
-If you add readiness: verify vector store reachable, KB index loaded, etc."""
+
+router = APIRouter(tags=["health"])
+
+
+@router.get("/health")
+async def health(request: Request) -> dict[str, object]:
+    dependencies = request.app.state.dependencies
+    return {
+        "status": "ok",
+        "app": dependencies.settings.app_name,
+        "environment": dependencies.settings.app_env,
+    }
+
+
+@router.get("/ready")
+async def ready(request: Request) -> dict[str, object]:
+    dependencies = request.app.state.dependencies
+    repository_health = dependencies.processed_store.healthcheck()
+    if not repository_health.ready:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "not_ready",
+                "detail": repository_health.detail,
+            },
+        )
+
+    return {
+        "status": "ready",
+        "dataset_version": repository_health.dataset_version,
+        "artifact_count": repository_health.artifact_count,
+    }
