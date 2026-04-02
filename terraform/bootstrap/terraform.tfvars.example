@@ -1,0 +1,4 @@
+project_name        = "payjack-ai-companion"
+tf_state_bucket_name = "payjack-ai-companion-tf-state-REPLACE_ME"
+tf_lock_table_name   = "payjack-ai-companion-tf-locks"
+ecr_repository_name  = "payjack-ai-companion-backend"
