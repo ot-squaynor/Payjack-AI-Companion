@@ -1,0 +1,213 @@
+name: deploy-env
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      image_tag:
+        description: Optional image tag override
+        required: false
+        type: string
+      publish_kb:
+        description: Build and publish KB artifacts during deploy
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+      APP_NAME: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
+      ECR_REPOSITORY_NAME: ${{ vars.ECR_REPOSITORY_NAME != '' && vars.ECR_REPOSITORY_NAME || 'payjack-ai-companion-backend' }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
+      TF_VAR_app_name: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+      TF_VAR_vpc_id: ${{ vars.VPC_ID }}
+      TF_VAR_alb_subnet_ids: ${{ vars.ALB_SUBNET_IDS }}
+      TF_VAR_ecs_subnet_ids: ${{ vars.ECS_SUBNET_IDS }}
+      TF_VAR_alb_ingress_cidr_blocks: ${{ vars.ALB_INGRESS_CIDR_BLOCKS != '' && vars.ALB_INGRESS_CIDR_BLOCKS || '["0.0.0.0/0"]' }}
+      TF_VAR_external_transactions_bucket_name: ${{ vars.EXTERNAL_TRANSACTIONS_BUCKET }}
+      TF_VAR_external_transactions_prefix: ${{ vars.EXTERNAL_TRANSACTIONS_PREFIX }}
+      TF_VAR_external_accounts_bucket_name: ${{ vars.EXTERNAL_ACCOUNTS_BUCKET }}
+      TF_VAR_external_accounts_prefix: ${{ vars.EXTERNAL_ACCOUNTS_PREFIX }}
+      TF_VAR_external_fees_bucket_name: ${{ vars.EXTERNAL_FEES_BUCKET }}
+      TF_VAR_external_fees_prefix: ${{ vars.EXTERNAL_FEES_PREFIX }}
+      TF_VAR_external_products_bucket_name: ${{ vars.EXTERNAL_PRODUCTS_BUCKET }}
+      TF_VAR_external_products_prefix: ${{ vars.EXTERNAL_PRODUCTS_PREFIX }}
+      TF_VAR_external_metadata_bucket_name: ${{ vars.EXTERNAL_METADATA_BUCKET }}
+      TF_VAR_external_metadata_prefix: ${{ vars.EXTERNAL_METADATA_PREFIX }}
+      TF_VAR_use_mock_bedrock: ${{ vars.USE_MOCK_BEDROCK != '' && vars.USE_MOCK_BEDROCK || 'true' }}
+      TF_VAR_use_local_rag: ${{ vars.USE_LOCAL_RAG != '' && vars.USE_LOCAL_RAG || 'false' }}
+      TF_VAR_enable_debug_traces: ${{ vars.ENABLE_DEBUG_TRACES != '' && vars.ENABLE_DEBUG_TRACES || 'true' }}
+      TF_VAR_bedrock_model_id: ${{ vars.BEDROCK_MODEL_ID != '' && vars.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-haiku-20241022-v1:0' }}
+      TF_VAR_bedrock_embedding_model_id: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID != '' && vars.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0' }}
+      TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS != '' && vars.CORS_ORIGINS || 'http://localhost:3000' }}
+      TF_VAR_allow_force_destroy: ${{ inputs.environment != 'prod' && 'true' || 'false' }}
+      TF_VAR_create_frontend_bucket: ${{ vars.CREATE_FRONTEND_BUCKET != '' && vars.CREATE_FRONTEND_BUCKET || 'false' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve image and Terraform runtime variables
+        run: |
+          test -n "${TF_STATE_BUCKET}" || { echo "TF_STATE_BUCKET must be set."; exit 1; }
+          test -n "${TF_LOCK_TABLE}" || { echo "TF_LOCK_TABLE must be set."; exit 1; }
+          ECR_REPOSITORY_URL="$(aws ecr describe-repositories --repository-names "${ECR_REPOSITORY_NAME}" --query 'repositories[0].repositoryUri' --output text)"
+          test -n "${ECR_REPOSITORY_URL}" || { echo "Failed to resolve ECR repository URL."; exit 1; }
+          IMAGE_TAG="${{ inputs.image_tag }}"
+          if [[ -z "${IMAGE_TAG}" ]]; then
+            IMAGE_TAG="${GITHUB_SHA::12}"
+          fi
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
+          echo "ECR_REPOSITORY_URL=${ECR_REPOSITORY_URL}" >> "$GITHUB_ENV"
+          echo "TF_VAR_environment=${TARGET_ENVIRONMENT}" >> "$GITHUB_ENV"
+          echo "TF_VAR_ecr_repository_url=${ECR_REPOSITORY_URL}" >> "$GITHUB_ENV"
+          echo "TF_VAR_image_tag=${IMAGE_TAG}" >> "$GITHUB_ENV"
+
+      - name: Validate external buckets
+        run: |
+          check_bucket() {
+            local label="$1"
+            local bucket="$2"
+            if [[ -z "${bucket}" ]]; then
+              echo "Skipping ${label}; no bucket configured."
+              return
+            fi
+            echo "Validating ${label}: ${bucket}"
+            aws s3api head-bucket --bucket "${bucket}"
+          }
+
+          check_bucket "transactions bucket" "${TF_VAR_external_transactions_bucket_name}"
+          check_bucket "accounts bucket" "${TF_VAR_external_accounts_bucket_name}"
+          check_bucket "fees bucket" "${TF_VAR_external_fees_bucket_name}"
+          check_bucket "products bucket" "${TF_VAR_external_products_bucket_name}"
+          check_bucket "metadata bucket" "${TF_VAR_external_metadata_bucket_name}"
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.dev.txt
+
+      - name: Run backend tests
+        env:
+          PYTHONPATH: backend
+        run: pytest backend/tests/unit backend/tests/tool_tests backend/tests/integration
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        run: |
+          docker build -f backend/Dockerfile -t "${ECR_REPOSITORY_URL}:${IMAGE_TAG}" .
+          docker push "${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+      - name: Terraform init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=environments/${TARGET_ENVIRONMENT}/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
+
+      - name: Terraform apply
+        working-directory: terraform
+        run: terraform apply -auto-approve
+
+      - name: Capture Terraform outputs
+        working-directory: terraform
+        run: terraform output -json > tf-outputs.json
+
+      - name: Build and publish processed datasets
+        env:
+          PYTHONPATH: backend
+        run: |
+          PROCESSED_BUCKET="$(jq -r '.processed_artifacts_bucket_name.value' terraform/tf-outputs.json)"
+          mkdir -p .tmp/processed
+
+          transform_args=(
+            --source-mode s3
+            --environment "${TARGET_ENVIRONMENT}"
+            --output-dir ".tmp/processed"
+            --output-bucket "${PROCESSED_BUCKET}"
+            --output-prefix "${TARGET_ENVIRONMENT}"
+            --transactions-bucket "${TF_VAR_external_transactions_bucket_name}"
+            --transactions-prefix "${TF_VAR_external_transactions_prefix}"
+          )
+
+          if [[ -n "${TF_VAR_external_accounts_bucket_name}" ]]; then
+            transform_args+=(--accounts-bucket "${TF_VAR_external_accounts_bucket_name}" --accounts-prefix "${TF_VAR_external_accounts_prefix}")
+          fi
+          if [[ -n "${TF_VAR_external_fees_bucket_name}" ]]; then
+            transform_args+=(--fees-bucket "${TF_VAR_external_fees_bucket_name}" --fees-prefix "${TF_VAR_external_fees_prefix}")
+          fi
+          if [[ -n "${TF_VAR_external_products_bucket_name}" ]]; then
+            transform_args+=(--products-bucket "${TF_VAR_external_products_bucket_name}" --products-prefix "${TF_VAR_external_products_prefix}")
+          fi
+          if [[ -n "${TF_VAR_external_metadata_bucket_name}" ]]; then
+            transform_args+=(--metadata-bucket "${TF_VAR_external_metadata_bucket_name}" --metadata-prefix "${TF_VAR_external_metadata_prefix}")
+          fi
+
+          python scripts/dataset_transform.py "${transform_args[@]}"
+
+      - name: Build and publish KB artifacts
+        if: ${{ inputs.publish_kb }}
+        env:
+          PYTHONPATH: backend
+        run: |
+          KB_SOURCE_BUCKET="$(jq -r '.kb_source_bucket_name.value' terraform/tf-outputs.json)"
+          KB_ARTIFACTS_BUCKET="$(jq -r '.kb_artifacts_bucket_name.value' terraform/tf-outputs.json)"
+
+          if [[ -d "backend/kb/raw_docs" ]]; then
+            aws s3 sync "backend/kb/raw_docs" "s3://${KB_SOURCE_BUCKET}/raw_docs/" --delete
+          fi
+
+          python scripts/kb_build.py
+          python scripts/embeddings_generate.py
+          python scripts/kb_publish.py --bucket "${KB_ARTIFACTS_BUCKET}" --prefix "${TARGET_ENVIRONMENT}"
+
+      - name: Smoke test deployed API
+        run: |
+          API_URL="$(jq -r '.api_url.value' terraform/tf-outputs.json)"
+          curl --fail --retry 5 --retry-delay 10 "${API_URL}/health"
+          curl --fail --retry 5 --retry-delay 10 "${API_URL}/ready"

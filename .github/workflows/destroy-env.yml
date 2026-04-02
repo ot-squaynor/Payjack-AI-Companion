@@ -1,0 +1,124 @@
+name: destroy-env
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to destroy
+        required: true
+        type: choice
+        options:
+          - dev
+          - test
+          - prod
+      confirmation:
+        description: Type destroy-<environment> to confirm
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: destroy-${{ inputs.environment }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+      APP_NAME: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
+      ECR_REPOSITORY_NAME: ${{ vars.ECR_REPOSITORY_NAME != '' && vars.ECR_REPOSITORY_NAME || 'payjack-ai-companion-backend' }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
+      TF_VAR_app_name: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+      TF_VAR_vpc_id: ${{ vars.VPC_ID }}
+      TF_VAR_alb_subnet_ids: ${{ vars.ALB_SUBNET_IDS }}
+      TF_VAR_ecs_subnet_ids: ${{ vars.ECS_SUBNET_IDS }}
+      TF_VAR_alb_ingress_cidr_blocks: ${{ vars.ALB_INGRESS_CIDR_BLOCKS != '' && vars.ALB_INGRESS_CIDR_BLOCKS || '["0.0.0.0/0"]' }}
+      TF_VAR_external_transactions_bucket_name: ${{ vars.EXTERNAL_TRANSACTIONS_BUCKET }}
+      TF_VAR_external_transactions_prefix: ${{ vars.EXTERNAL_TRANSACTIONS_PREFIX }}
+      TF_VAR_external_accounts_bucket_name: ${{ vars.EXTERNAL_ACCOUNTS_BUCKET }}
+      TF_VAR_external_accounts_prefix: ${{ vars.EXTERNAL_ACCOUNTS_PREFIX }}
+      TF_VAR_external_fees_bucket_name: ${{ vars.EXTERNAL_FEES_BUCKET }}
+      TF_VAR_external_fees_prefix: ${{ vars.EXTERNAL_FEES_PREFIX }}
+      TF_VAR_external_products_bucket_name: ${{ vars.EXTERNAL_PRODUCTS_BUCKET }}
+      TF_VAR_external_products_prefix: ${{ vars.EXTERNAL_PRODUCTS_PREFIX }}
+      TF_VAR_external_metadata_bucket_name: ${{ vars.EXTERNAL_METADATA_BUCKET }}
+      TF_VAR_external_metadata_prefix: ${{ vars.EXTERNAL_METADATA_PREFIX }}
+      TF_VAR_use_mock_bedrock: ${{ vars.USE_MOCK_BEDROCK != '' && vars.USE_MOCK_BEDROCK || 'true' }}
+      TF_VAR_use_local_rag: ${{ vars.USE_LOCAL_RAG != '' && vars.USE_LOCAL_RAG || 'false' }}
+      TF_VAR_enable_debug_traces: ${{ vars.ENABLE_DEBUG_TRACES != '' && vars.ENABLE_DEBUG_TRACES || 'true' }}
+      TF_VAR_bedrock_model_id: ${{ vars.BEDROCK_MODEL_ID != '' && vars.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-haiku-20241022-v1:0' }}
+      TF_VAR_bedrock_embedding_model_id: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID != '' && vars.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0' }}
+      TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS != '' && vars.CORS_ORIGINS || 'http://localhost:3000' }}
+      TF_VAR_allow_force_destroy: ${{ inputs.environment != 'prod' && 'true' || 'false' }}
+      TF_VAR_create_frontend_bucket: ${{ vars.CREATE_FRONTEND_BUCKET != '' && vars.CREATE_FRONTEND_BUCKET || 'false' }}
+
+    steps:
+      - name: Require explicit confirmation
+        run: |
+          EXPECTED="destroy-${TARGET_ENVIRONMENT}"
+          if [[ "${{ inputs.confirmation }}" != "${EXPECTED}" ]]; then
+            echo "Confirmation string must match ${EXPECTED}."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve Terraform runtime variables
+        run: |
+          test -n "${TF_STATE_BUCKET}" || { echo "TF_STATE_BUCKET must be set."; exit 1; }
+          test -n "${TF_LOCK_TABLE}" || { echo "TF_LOCK_TABLE must be set."; exit 1; }
+          ECR_REPOSITORY_URL="$(aws ecr describe-repositories --repository-names "${ECR_REPOSITORY_NAME}" --query 'repositories[0].repositoryUri' --output text)"
+          test -n "${ECR_REPOSITORY_URL}" || { echo "Failed to resolve ECR repository URL."; exit 1; }
+          echo "TF_VAR_environment=${TARGET_ENVIRONMENT}" >> "$GITHUB_ENV"
+          echo "TF_VAR_ecr_repository_url=${ECR_REPOSITORY_URL}" >> "$GITHUB_ENV"
+          echo "TF_VAR_image_tag=destroy-${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Terraform init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=environments/${TARGET_ENVIRONMENT}/terraform.tfstate" \
+            -backend-config="region=${AWS_REGION}" \
+            -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
+
+      - name: Capture Terraform outputs before destroy
+        working-directory: terraform
+        run: terraform output -json > tf-outputs.json || echo '{}' > tf-outputs.json
+
+      - name: Empty managed buckets for non-prod destroy
+        if: ${{ inputs.environment != 'prod' }}
+        run: |
+          for bucket in \
+            "$(jq -r '.processed_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)" \
+            "$(jq -r '.kb_source_bucket_name.value // empty' terraform/tf-outputs.json)" \
+            "$(jq -r '.kb_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)" \
+            "$(jq -r '.frontend_bucket_name.value // empty' terraform/tf-outputs.json)"; do
+            if [[ -n "${bucket}" ]]; then
+              aws s3 rm "s3://${bucket}" --recursive || true
+            fi
+          done
+
+      - name: Terraform destroy
+        working-directory: terraform
+        run: terraform destroy -auto-approve

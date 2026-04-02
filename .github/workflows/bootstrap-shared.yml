@@ -1,0 +1,64 @@
+name: bootstrap-shared
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_changes:
+        description: Apply the shared Terraform bootstrap stack
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+  PROJECT_NAME: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
+  TF_STATE_BUCKET_NAME: ${{ vars.TF_STATE_BUCKET }}
+  TF_LOCK_TABLE_NAME: ${{ vars.TF_LOCK_TABLE }}
+  ECR_REPOSITORY_NAME: ${{ vars.ECR_REPOSITORY_NAME != '' && vars.ECR_REPOSITORY_NAME || 'payjack-ai-companion-backend' }}
+
+jobs:
+  bootstrap:
+    if: ${{ inputs.apply_changes }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Validate required shared settings
+        run: |
+          test -n "${TF_STATE_BUCKET_NAME}" || { echo "TF_STATE_BUCKET must be set."; exit 1; }
+          test -n "${TF_LOCK_TABLE_NAME}" || { echo "TF_LOCK_TABLE must be set."; exit 1; }
+
+      - name: Terraform init
+        working-directory: terraform/bootstrap
+        run: terraform init
+
+      - name: Terraform apply
+        working-directory: terraform/bootstrap
+        env:
+          TF_VAR_project_name: ${{ env.PROJECT_NAME }}
+          TF_VAR_tf_state_bucket_name: ${{ env.TF_STATE_BUCKET_NAME }}
+          TF_VAR_tf_lock_table_name: ${{ env.TF_LOCK_TABLE_NAME }}
+          TF_VAR_ecr_repository_name: ${{ env.ECR_REPOSITORY_NAME }}
+        run: terraform apply -auto-approve
+
+      - name: Show bootstrap outputs
+        working-directory: terraform/bootstrap
+        run: terraform output
