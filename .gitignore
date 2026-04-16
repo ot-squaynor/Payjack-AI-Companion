@@ -3,6 +3,11 @@
 #Custom ignores for Payjack AI Companion
 KEY_CODE_COMMANDS.txt
 documentation/
+.tmp_bedrock_messages.json
+frontend/coverage/
+frontend/test-results/
+frontend/tsconfig.tsbuildinfo
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
