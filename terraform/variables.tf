@@ -1,80 +1,85 @@
 variable "app_name" {
-  type    = string
-  default = "payjack-ai-companion"
+  description = "Name prefix for all resources."
+  type        = string
+  default     = "payjack-ai-companion"
+
+  validation {
+    condition     = can(regex("^[a-z0-9-]+$", var.app_name))
+    error_message = "App name must contain only lowercase letters, numbers, and hyphens."
+  }
 }
 
 variable "environment" {
-  type = string
+  description = "Deployment environment name."
+  type        = string
+
+  validation {
+    condition     = contains(["dev", "test", "prod"], var.environment)
+    error_message = "Environment must be one of dev, test, or prod."
+  }
 }
 
 variable "aws_region" {
-  type    = string
-  default = "us-east-1"
-}
-
-variable "vpc_id" {
-  type = string
-}
-
-variable "alb_subnet_ids" {
-  type = list(string)
-}
-
-variable "ecs_subnet_ids" {
-  type = list(string)
-}
-
-variable "alb_ingress_cidr_blocks" {
-  type    = list(string)
-  default = ["0.0.0.0/0"]
-}
-
-variable "app_port" {
-  type    = number
-  default = 8000
+  description = "AWS region for regional resources."
+  type        = string
+  default     = "us-east-1"
 }
 
 variable "ecr_repository_url" {
-  type = string
+  description = "ECR repository URL that stores the backend Lambda image."
+  type        = string
 }
 
 variable "image_tag" {
-  type = string
+  description = "Backend image tag to deploy."
+  type        = string
 }
 
-variable "cpu" {
-  type    = number
-  default = 512
+variable "lambda_memory_size" {
+  description = "Lambda memory size in MB."
+  type        = number
+  default     = 2048
 }
 
-variable "memory" {
-  type    = number
-  default = 1024
+variable "lambda_timeout_seconds" {
+  description = "Lambda timeout in seconds."
+  type        = number
+  default     = 60
 }
 
-variable "desired_count" {
-  type    = number
-  default = 1
+variable "lambda_architecture" {
+  description = "Lambda instruction set architecture."
+  type        = string
+  default     = "x86_64"
+
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.lambda_architecture)
+    error_message = "Lambda architecture must be x86_64 or arm64."
+  }
+}
+
+variable "cloudfront_price_class" {
+  description = "CloudFront edge location price class."
+  type        = string
+  default     = "PriceClass_100"
 }
 
 variable "allow_force_destroy" {
-  type    = bool
-  default = false
-}
-
-variable "create_frontend_bucket" {
-  type    = bool
-  default = false
+  description = "Allow Terraform to force-destroy non-prod buckets."
+  type        = bool
+  default     = false
 }
 
 variable "shared_kb_source_bucket_name" {
-  type    = string
-  default = null
+  description = "Shared KB source bucket created by bootstrap."
+  type        = string
+  default     = null
 }
 
 variable "shared_kb_artifacts_bucket_name" {
-  type    = string
-  default = null
+  description = "Shared KB artifacts bucket created by bootstrap."
+  type        = string
+  default     = null
 }
 
 variable "external_transactions_bucket_name" {
@@ -129,7 +134,7 @@ variable "external_metadata_prefix" {
 
 variable "use_mock_bedrock" {
   type    = bool
-  default = true
+  default = false
 }
 
 variable "use_local_rag" {

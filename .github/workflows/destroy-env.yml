@@ -41,10 +41,6 @@ jobs:
       TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
       TF_VAR_app_name: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
       TF_VAR_aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
-      TF_VAR_vpc_id: ${{ vars.VPC_ID }}
-      TF_VAR_alb_subnet_ids: ${{ vars.ALB_SUBNET_IDS }}
-      TF_VAR_ecs_subnet_ids: ${{ vars.ECS_SUBNET_IDS }}
-      TF_VAR_alb_ingress_cidr_blocks: ${{ vars.ALB_INGRESS_CIDR_BLOCKS != '' && vars.ALB_INGRESS_CIDR_BLOCKS || '["0.0.0.0/0"]' }}
       TF_VAR_external_transactions_bucket_name: ${{ vars.EXTERNAL_TRANSACTIONS_BUCKET }}
       TF_VAR_external_transactions_prefix: ${{ vars.EXTERNAL_TRANSACTIONS_PREFIX }}
       TF_VAR_external_accounts_bucket_name: ${{ vars.EXTERNAL_ACCOUNTS_BUCKET }}
@@ -55,14 +51,13 @@ jobs:
       TF_VAR_external_products_prefix: ${{ vars.EXTERNAL_PRODUCTS_PREFIX }}
       TF_VAR_external_metadata_bucket_name: ${{ vars.EXTERNAL_METADATA_BUCKET }}
       TF_VAR_external_metadata_prefix: ${{ vars.EXTERNAL_METADATA_PREFIX }}
-      TF_VAR_use_mock_bedrock: ${{ vars.USE_MOCK_BEDROCK != '' && vars.USE_MOCK_BEDROCK || 'true' }}
+      TF_VAR_use_mock_bedrock: ${{ vars.USE_MOCK_BEDROCK != '' && vars.USE_MOCK_BEDROCK || 'false' }}
       TF_VAR_use_local_rag: ${{ vars.USE_LOCAL_RAG != '' && vars.USE_LOCAL_RAG || 'false' }}
-      TF_VAR_enable_debug_traces: ${{ vars.ENABLE_DEBUG_TRACES != '' && vars.ENABLE_DEBUG_TRACES || 'true' }}
+      TF_VAR_enable_debug_traces: ${{ vars.ENABLE_DEBUG_TRACES != '' && vars.ENABLE_DEBUG_TRACES || (inputs.environment != 'prod' && 'true' || 'false') }}
       TF_VAR_bedrock_model_id: ${{ vars.BEDROCK_MODEL_ID != '' && vars.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-haiku-20241022-v1:0' }}
       TF_VAR_bedrock_embedding_model_id: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID != '' && vars.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0' }}
       TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS != '' && vars.CORS_ORIGINS || 'http://localhost:3000' }}
       TF_VAR_allow_force_destroy: ${{ inputs.environment != 'prod' && 'true' || 'false' }}
-      TF_VAR_create_frontend_bucket: ${{ vars.CREATE_FRONTEND_BUCKET != '' && vars.CREATE_FRONTEND_BUCKET || 'false' }}
 
     steps:
       - name: Require explicit confirmation

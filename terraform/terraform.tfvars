@@ -1,17 +1,24 @@
-environment = "dev"
-app_name    = "payjack-ai-companion"
-
-# Fill these values per environment before applying locally, or supply them
-# through GitHub Actions environment variables and -var flags.
-vpc_id         = "vpc-REPLACE_ME"
-alb_subnet_ids = ["subnet-REPLACE_ME_A", "subnet-REPLACE_ME_B"]
-ecs_subnet_ids = ["subnet-REPLACE_ME_A", "subnet-REPLACE_ME_B"]
-
-ecr_repository_url = "REPLACE_ME.dkr.ecr.us-east-1.amazonaws.com/payjack-ai-companion-backend"
-image_tag          = "latest"
-
-shared_kb_source_bucket_name    = "REPLACE_ME_SHARED_KB_SOURCE_BUCKET"
-shared_kb_artifacts_bucket_name = "REPLACE_ME_SHARED_KB_ARTIFACTS_BUCKET"
-
-external_transactions_bucket_name = "REPLACE_ME_TRANSACTIONS_BUCKET"
-external_accounts_bucket_name     = "REPLACE_ME_ACCOUNTS_BUCKET"
+# This file is intentionally non-binding so GitHub Actions can supply runtime
+# values through TF_VAR_* environment variables.
+#
+# For local applies, either export TF_VAR_* values or copy the examples below
+# into a local, uncommitted tfvars file.
+#
+# environment        = "dev"
+# app_name           = "payjack-ai-companion"
+# aws_region         = "eu-west-1"
+# ecr_repository_url = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/payjack-ai-companion-backend"
+# image_tag          = "latest"
+#
+# shared_kb_source_bucket_name    = "payjack-ai-companion-123456789012-kb-source"
+# shared_kb_artifacts_bucket_name = "payjack-ai-companion-123456789012-kb-artifacts"
+#
+# external_transactions_bucket_name = "payjack-demo-transactions"
+# external_transactions_prefix      = ""
+# external_accounts_bucket_name     = "payjack-demo-accounts"
+# external_accounts_prefix          = ""
+#
+# use_mock_bedrock    = false
+# use_local_rag       = false
+# enable_debug_traces = true
+# allow_force_destroy = true

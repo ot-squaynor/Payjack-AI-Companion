@@ -1,23 +1,29 @@
 environment = "dev"
 app_name    = "payjack-ai-companion"
-aws_region  = "us-east-1"
+aws_region  = "eu-west-1"
 
-vpc_id         = "vpc-REPLACE_ME"
-alb_subnet_ids = ["subnet-REPLACE_ME_A", "subnet-REPLACE_ME_B"]
-ecs_subnet_ids = ["subnet-REPLACE_ME_A", "subnet-REPLACE_ME_B"]
-
-ecr_repository_url = "REPLACE_ME.dkr.ecr.us-east-1.amazonaws.com/payjack-ai-companion-backend"
+ecr_repository_url = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/payjack-ai-companion-backend"
 image_tag          = "latest"
 
-# Optional overrides. If omitted, use the shared/bootstrap bucket names.
-shared_kb_source_bucket_name    = "REPLACE_ME_SHARED_KB_SOURCE_BUCKET"
-shared_kb_artifacts_bucket_name = "REPLACE_ME_SHARED_KB_ARTIFACTS_BUCKET"
+# Optional overrides. If omitted, use the shared/bootstrap bucket names
+# resolved by GitHub Actions.
+shared_kb_source_bucket_name    = "payjack-ai-companion-123456789012-kb-source"
+shared_kb_artifacts_bucket_name = "payjack-ai-companion-123456789012-kb-artifacts"
 
-external_transactions_bucket_name = "REPLACE_ME_TRANSACTIONS_BUCKET"
+# Demo-safe external artifact sources.
+external_transactions_bucket_name = "payjack-demo-transactions"
 external_transactions_prefix      = ""
-external_accounts_bucket_name     = "REPLACE_ME_ACCOUNTS_BUCKET"
+external_accounts_bucket_name     = "payjack-demo-accounts"
 external_accounts_prefix          = ""
 
-use_mock_bedrock   = true
-use_local_rag      = false
+use_mock_bedrock    = false
+use_local_rag       = false
+enable_debug_traces = true
 allow_force_destroy = true
+
+lambda_memory_size      = 2048
+lambda_timeout_seconds  = 60
+lambda_architecture     = "x86_64"
+cloudfront_price_class  = "PriceClass_100"
+bedrock_model_id        = "amazon.nova-micro-v1:0"
+bedrock_embedding_model_id = "amazon.titan-embed-text-v2:0"
