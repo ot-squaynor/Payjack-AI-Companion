@@ -25,5 +25,6 @@ async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
             payload,
             auth_context=auth_context,
         )
+        print("Chat request processed successfully.")    
     except Exception as exc:  # pragma: no cover - exercised in integration tests
         raise to_http_exception(exc) from exc

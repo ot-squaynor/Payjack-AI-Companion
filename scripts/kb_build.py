@@ -33,7 +33,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-dir", default="backend/kb/raw_docs")
     parser.add_argument("--output-dir", default="backend/kb/processed_docs")
     parser.add_argument("--metadata-dir", default="backend/kb/metadata")
-    parser.add_argument("--chunk-size", type=int, default=1200)
+    parser.add_argument("--chunk-size", type=int, default=1000)
+    parser.add_argument("--chunk-overlap", type=int, default=200)
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 
@@ -62,24 +63,40 @@ def _read_text_document(path: Path) -> str:
 
 
 ##BRICK 3: Chunk construction helpers
-def _split_into_chunks(text: str, *, chunk_size: int) -> list[str]:
+def _split_into_chunks(text: str, *, chunk_size: int, chunk_overlap: int) -> list[str]:
     paragraphs = [paragraph.strip() for paragraph in text.splitlines() if paragraph.strip()]
+    normalized_text = "\n".join(paragraphs).strip()
+    if not normalized_text:
+        return []
+
+    safe_overlap = max(0, min(chunk_overlap, max(chunk_size - 1, 0)))
     chunks: list[str] = []
-    current: list[str] = []
-    current_length = 0
+    start = 0
+    text_length = len(normalized_text)
 
-    for paragraph in paragraphs:
-        paragraph_length = len(paragraph)
-        if current and current_length + paragraph_length > chunk_size:
-            chunks.append("\n".join(current))
-            current = [paragraph]
-            current_length = paragraph_length
-        else:
-            current.append(paragraph)
-            current_length += paragraph_length
+    while start < text_length:
+        target_end = min(text_length, start + chunk_size)
+        end = target_end
 
-    if current:
-        chunks.append("\n".join(current))
+        if target_end < text_length:
+            paragraph_boundary = normalized_text.rfind("\n", start, target_end)
+            word_boundary = normalized_text.rfind(" ", start, target_end)
+            if paragraph_boundary > start + (chunk_size // 2):
+                end = paragraph_boundary
+            elif word_boundary > start + (chunk_size // 2):
+                end = word_boundary
+
+        chunk_text = normalized_text[start:end].strip()
+        if chunk_text and (not chunks or chunks[-1] != chunk_text):
+            chunks.append(chunk_text)
+
+        if end >= text_length:
+            break
+
+        next_start = max(end - safe_overlap, start + 1)
+        while next_start < text_length and normalized_text[next_start].isspace():
+            next_start += 1
+        start = next_start
 
     return chunks
 
@@ -109,8 +126,19 @@ def main() -> None:
         relative_path = path.relative_to(input_dir).as_posix()
         doc_id = relative_path.replace("/", "_").replace(".", "_")
         title = path.stem.replace("_", " ").replace("-", " ").title()
-        text = _read_text_document(path)
-        chunks = _split_into_chunks(text, chunk_size=args.chunk_size)
+        try:
+            text = _read_text_document(path)
+        except Exception as exc:  # pragma: no cover - depends on local document formats
+            logger.warning("Skipping KB source %s: %s", relative_path, exc)
+            continue
+        if not text.strip():
+            logger.warning("Skipping empty KB source %s", relative_path)
+            continue
+        chunks = _split_into_chunks(
+            text,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap,
+        )
         processed_documents.append(relative_path)
         for chunk_index, chunk_text in enumerate(chunks):
             chunk_records.append(

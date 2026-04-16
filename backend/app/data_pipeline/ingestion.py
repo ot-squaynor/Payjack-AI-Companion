@@ -987,3 +987,4 @@ if __name__ == "__main__":
 
     logger.info("Wrote ingestion intermediates: %s", {k: str(v) for k, v in written.items()})
 # Needs a little more work to be a full standalone script (e.g., command-line args for raw/processed paths, format), but this is the core logic for ingestion.
+print("Data ingestion module loaded. Ready to ingest datasets from local or S3 sources according to specifications.")

@@ -57,3 +57,5 @@ class ChatResponse(BaseModel):
     citations: list[Citation] = Field(default_factory=list)
     refusal: Refusal | None = None
     debug: dict[str, Any] = Field(default_factory=dict)
+
+print("API schemas for chat requests and responses have been defined.")

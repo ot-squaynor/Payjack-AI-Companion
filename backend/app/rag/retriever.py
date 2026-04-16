@@ -13,12 +13,41 @@ from app.rag.metadata_filters import apply_metadata_filters
 from app.rag.vector_store import rank_chunks
 
 
+DEFAULT_RETRIEVAL_LIMIT = 5
+MAX_ACCEPTED_CITATIONS = 3
+MIN_ACCEPTED_MATCHED_TERMS = 2
+MIN_ACCEPTED_TITLE_MATCHES = 1
+MIN_ACCEPTED_SCORE = 0.35
+
+
 @dataclass(frozen=True, slots=True)
 class RetrieverResult:
     citations: tuple[dict[str, Any], ...]
+    usable_context: bool
+    fallback_reason: str | None = None
+    retrieved_count: int = 0
+    accepted_count: int = 0
+    top_score: float = 0.0
 
     def __iter__(self):
         return iter(self.citations)
+
+    @classmethod
+    def empty(
+        cls,
+        *,
+        reason: str,
+        retrieved_count: int = 0,
+        top_score: float = 0.0,
+    ) -> "RetrieverResult":
+        return cls(
+            citations=(),
+            usable_context=False,
+            fallback_reason=reason,
+            retrieved_count=retrieved_count,
+            accepted_count=0,
+            top_score=top_score,
+        )
 
 
 class KnowledgeRetriever:
@@ -29,23 +58,83 @@ class KnowledgeRetriever:
         self,
         query: str,
         *,
-        limit: int = 3,
+        limit: int = DEFAULT_RETRIEVAL_LIMIT,
         allowed_types: tuple[str, ...] = (),
     ) -> RetrieverResult:
         filtered_chunks = apply_metadata_filters(self.chunks, allowed_types=allowed_types)
         ranked_chunks = rank_chunks(query=query, chunks=filtered_chunks, limit=limit)
+        if not ranked_chunks:
+            return RetrieverResult.empty(reason="no_candidate_chunks")
+
+        top_chunk = ranked_chunks[0]
+        top_score = float(top_chunk.get("score", 0.0))
+        top_snippet = str(top_chunk.get("text", "")).strip()
+        top_match_count = int(top_chunk.get("matched_term_count", 0))
+        top_title_match_count = int(top_chunk.get("title_match_count", 0))
+
+        if not top_snippet:
+            return RetrieverResult.empty(
+                reason="empty_top_snippet",
+                retrieved_count=len(ranked_chunks),
+                top_score=top_score,
+            )
+        if top_match_count < MIN_ACCEPTED_MATCHED_TERMS:
+            return RetrieverResult.empty(
+                reason="insufficient_term_overlap",
+                retrieved_count=len(ranked_chunks),
+                top_score=top_score,
+            )
+        if top_title_match_count < MIN_ACCEPTED_TITLE_MATCHES:
+            return RetrieverResult.empty(
+                reason="insufficient_title_overlap",
+                retrieved_count=len(ranked_chunks),
+                top_score=top_score,
+            )
+        if top_score < MIN_ACCEPTED_SCORE:
+            return RetrieverResult.empty(
+                reason="top_score_below_threshold",
+                retrieved_count=len(ranked_chunks),
+                top_score=top_score,
+            )
+
         citations = []
         for chunk in ranked_chunks:
+            snippet = str(chunk.get("text", "")).strip()
+            if not snippet:
+                continue
+            if int(chunk.get("matched_term_count", 0)) < MIN_ACCEPTED_MATCHED_TERMS:
+                continue
+            if int(chunk.get("title_match_count", 0)) < MIN_ACCEPTED_TITLE_MATCHES:
+                continue
+            if float(chunk.get("score", 0.0)) < MIN_ACCEPTED_SCORE:
+                continue
             citations.append(
                 {
                     "doc_id": str(chunk.get("doc_id", "unknown")),
                     "title": str(chunk.get("title", chunk.get("doc_id", "Payjack documentation"))),
-                    "snippet": str(chunk.get("text", ""))[:280],
+                    "snippet": snippet[:280],
                     "score": float(chunk.get("score", 0.0)),
                     "metadata": dict(chunk.get("metadata", {})),
                 }
             )
-        return RetrieverResult(citations=tuple(citations))
+            if len(citations) >= MAX_ACCEPTED_CITATIONS:
+                break
+
+        if not citations:
+            return RetrieverResult.empty(
+                reason="no_accepted_chunks",
+                retrieved_count=len(ranked_chunks),
+                top_score=top_score,
+            )
+
+        return RetrieverResult(
+            citations=tuple(citations),
+            usable_context=True,
+            fallback_reason=None,
+            retrieved_count=len(ranked_chunks),
+            accepted_count=len(citations),
+            top_score=top_score,
+        )
 
 
 def _load_local_chunks(path: Path) -> list[dict[str, Any]]:

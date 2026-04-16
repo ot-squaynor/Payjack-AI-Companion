@@ -37,6 +37,19 @@ def _get_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+def _resolve_runtime_path(raw_value: str, *, backend_root: Path) -> Path:
+    candidate = Path(raw_value)
+    if candidate.is_absolute():
+        return candidate
+
+    project_root = backend_root.parent
+    path_parts = candidate.parts
+    if path_parts and path_parts[0].lower() == backend_root.name.lower():
+        return (project_root / candidate).resolve()
+
+    return (backend_root / candidate).resolve()
+
+
 ##BRICK 3: Runtime settings contract
 @dataclass(frozen=True, slots=True)
 class Settings:
@@ -75,6 +88,20 @@ class Settings:
 
         load_local_env()
         backend_root = Path(__file__).resolve().parents[1]
+        processed_local_root = _resolve_runtime_path(
+            os.getenv(
+                "PROCESSED_LOCAL_ROOT",
+                str(backend_root / "data" / "processed"),
+            ),
+            backend_root=backend_root,
+        )
+        kb_chunks_path = _resolve_runtime_path(
+            os.getenv(
+                "KB_CHUNKS_PATH",
+                str(backend_root / "kb" / "processed_docs" / "chunks.jsonl"),
+            ),
+            backend_root=backend_root,
+        )
         return cls(
             app_name=os.getenv("APP_NAME", "payjack-ai-companion"),
             app_env=os.getenv("APP_ENV", "local"),
@@ -83,12 +110,7 @@ class Settings:
             cors_origins=_get_tuple("CORS_ORIGINS", ("http://localhost:3000",)),
             max_message_chars=_get_int("MAX_MESSAGE_CHARS", 2000),
             processed_store_mode=os.getenv("PROCESSED_STORE_MODE", "local").strip().lower(),
-            processed_local_root=Path(
-                os.getenv(
-                    "PROCESSED_LOCAL_ROOT",
-                    str(backend_root / "data" / "processed"),
-                )
-            ),
+            processed_local_root=processed_local_root,
             processed_s3_bucket=os.getenv("PROCESSED_S3_BUCKET"),
             processed_s3_prefix=os.getenv("PROCESSED_S3_PREFIX", "").strip("/"),
             external_transactions_bucket=os.getenv("EXTERNAL_TRANSACTIONS_BUCKET"),
@@ -106,12 +128,7 @@ class Settings:
             bedrock_model_id=os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0"),
             bedrock_embedding_model_id=os.getenv("BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0"),
             bedrock_timeout_seconds=_get_int("BEDROCK_TIMEOUT_SECONDS", 30),
-            kb_chunks_path=Path(
-                os.getenv(
-                    "KB_CHUNKS_PATH",
-                    str(backend_root / "kb" / "processed_docs" / "chunks.jsonl"),
-                )
-            ),
+            kb_chunks_path=kb_chunks_path,
             kb_s3_bucket=os.getenv("KB_S3_BUCKET"),
             kb_s3_prefix=os.getenv("KB_S3_PREFIX", "").strip("/"),
         )

@@ -543,3 +543,5 @@ def mapping_coverage_summary(df: pd.DataFrame) -> dict[str, int]:
         summary[f"source::{source}"] = int(count)
     return summary
 ##
+
+print("Category mapping module loaded with default configuration and mapping logic.")

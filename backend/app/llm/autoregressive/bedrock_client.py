@@ -1,3 +1,8 @@
+# app/llm/autoregressive/bedrock_client.py
+# 2026-04-02
+"""Purpose: Define a client for invoking Bedrock models, along with a mock implementation for testing and development without incurring AWS costs."""
+
+##BRICK 1: Imports and data models
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -13,13 +18,14 @@ from app.errors import ModelInvocationError
 from app.llm.autoregressive.model_selector import select_model
 from app.telemetry.cost_tracking import estimate_generation_cost
 
-
+##BRICK 2: Generation request and result models, and client protocol
 @dataclass(frozen=True, slots=True)
 class GenerationRequest:
     route: str
     user_message: str
     system_prompt: str
     prompt: str
+    grounding_mode: str = "base"
     tool_results: list[dict[str, Any]] = field(default_factory=list)
     citations: list[dict[str, Any]] = field(default_factory=list)
 
@@ -38,6 +44,7 @@ class GenerationClient(Protocol):
         ...
 
 
+##BRICK 3: Mock Bedrock client and deterministic summary builder
 class MockBedrockClient:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -112,17 +119,28 @@ class MockBedrockClient:
                     )
                 return "\n".join(lines)
 
-        if request.citations:
-            first_citation = request.citations[0]
-            return (
-                "I found documentation that looks relevant. "
-                f"{first_citation.get('title', 'Payjack documentation')}: "
-                f"{first_citation.get('snippet', '')}"
-            )
+        if request.grounding_mode == "rag" and request.citations:
+            lines = ["Based on the accepted Payjack documentation, here are the most relevant details:"]
+            for citation in request.citations[:2]:
+                lines.append(
+                    "- {title}: {snippet}".format(
+                        title=citation.get("title", "Payjack documentation"),
+                        snippet=citation.get("snippet", ""),
+                    )
+                )
+            return "\n".join(lines)
+
+        if request.grounding_mode == "base":
+            if request.route == "rag":
+                return (
+                    "I could not verify that in reliable Payjack documentation, so I do not want to invent fees, "
+                    "limits, policies, or app steps. Please check the relevant Payjack docs or try a more specific question."
+                )
+            return "I can help explain Payjack transactions and documentation, but I need more reliable context to answer that well."
 
         return "I can help with transaction lookups, spend summaries, recurring payments, and Payjack documentation."
 
-
+##BRICK 4: Bedrock runtime client and real model invocation
 class BedrockRuntimeClient:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -181,8 +199,8 @@ class BedrockRuntimeClient:
             ),
         )
 
-
-def build_generation_client(settings: Settings) -> GenerationClient:
+##BRICK 5: Generation client factory
+def build_generation_client(settings: Settings) -> GenerationClient: # pragma: no cover - tested indirectly through chat endpoint integration tests
     if settings.use_mock_bedrock:
         return MockBedrockClient(settings)
     return BedrockRuntimeClient(settings)
