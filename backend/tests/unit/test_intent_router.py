@@ -26,6 +26,15 @@ def test_routes_documentation_queries_to_rag() -> None:
     assert decision.tool_name is None
 
 
+def test_routes_transaction_date_ranges_to_lookup_tool() -> None:
+    decision = route_message("Look up my transactions from April to May")
+
+    assert decision.route == "tool"
+    assert decision.tool_name == "transaction_lookup"
+    assert "start_date" in decision.tool_arguments
+    assert "end_date" in decision.tool_arguments
+
+
 def test_returns_clarify_when_no_confident_route_exists() -> None:
     decision = route_message("Tell me something interesting")
 

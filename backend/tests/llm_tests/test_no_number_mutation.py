@@ -11,6 +11,7 @@ def test_mock_bedrock_summary_preserves_tool_numbers(configured_test_env) -> Non
             user_message="How much did I spend?",
             system_prompt="You are Payjack.",
             prompt="Summarize spend totals.",
+            grounding_mode="tool",
             tool_results=[
                 {
                     "name": "spend_summary",

@@ -117,13 +117,19 @@ def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
     )
 
 
+def _runtime_assets_root() -> Path:
+    root = BACKEND_ROOT / "tests" / "runtime_assets"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 @pytest.fixture
 def processed_test_assets(
-    tmp_path: Path,
     sample_transactions_df: pd.DataFrame,
     sample_accounts_df: pd.DataFrame,
 ) -> dict[str, Path]:
-    processed_root = tmp_path / "processed"
+    runtime_root = _runtime_assets_root()
+    processed_root = runtime_root / "processed"
     processed_root.mkdir(parents=True, exist_ok=True)
 
     transactions_path = processed_root / "transactions.jsonl"
@@ -166,7 +172,7 @@ def processed_test_assets(
     )
     write_manifest(manifest, processed_root)
 
-    kb_root = tmp_path / "kb"
+    kb_root = runtime_root / "kb"
     kb_root.mkdir(parents=True, exist_ok=True)
     kb_chunks_path = kb_root / "chunks.jsonl"
     kb_chunks_path.write_text(
@@ -184,6 +190,7 @@ def processed_test_assets(
     )
 
     return {
+        "runtime_root": runtime_root,
         "processed_root": processed_root,
         "kb_chunks_path": kb_chunks_path,
     }
