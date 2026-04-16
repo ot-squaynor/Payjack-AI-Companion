@@ -65,8 +65,8 @@ GitHub Actions
   -> Shared Bootstrap Terraform
   -> ECR + Shared KB Buckets + Terraform State
   -> Environment Terraform
-  -> ECS + ALB + IAM + S3
-  -> Backend Runtime and Managed Artifacts
+  -> Lambda + API Gateway + CloudFront + S3
+  -> Public Frontend, Backend Runtime, and Managed Artifacts
 ```
 
 ---
@@ -164,13 +164,14 @@ The repository is AWS-native, but it supports a local-first developer workflow b
 | Local model seam | Mock Bedrock adapter | Current |
 | Documentation retrieval | Local/file retriever and shared S3-backed KB artifacts | Current |
 | Structured financial data | Processed artifacts loaded from local disk or S3 | Current |
-| Compute | ECS (containerized FastAPI service) | Current |
+| Compute | AWS Lambda container image for FastAPI via Mangum | Current |
+| API front door | API Gateway HTTP API | Current |
 | Container registry | Amazon ECR | Current |
 | Secrets / configuration | IAM + env vars + Terraform wiring | Current |
 | Logging / metrics hooks | CloudWatch-oriented runtime + telemetry modules | Current |
 | Documentation buckets | Shared S3 KB source and artifacts buckets | Current |
-| CDN for frontend | CloudFront | Optional future seam |
-| Event-driven functions | AWS Lambda | Optional future seam |
+| CDN for frontend | CloudFront with private S3 origin access control | Current |
+| Legacy container service | ECS/Fargate modules retained in repo | Optional historical path |
 | Managed Bedrock Knowledge Base resources | Possible later addition | Optional future seam |
 | Datadog | Additional observability option | Optional future seam |
 
@@ -180,10 +181,11 @@ The repository is AWS-native, but it supports a local-first developer workflow b
 - CI/CD -> GitHub Actions
 - Container -> Docker -> ECR
 - Infrastructure -> Terraform
-- Runtime Deploy -> ECS + ALB
-- Storage -> S3
+- Runtime Deploy -> Lambda + API Gateway
+- Frontend Deploy -> S3 + CloudFront
+- Storage -> S3 processed and KB artifacts
 
-The active repo path is **GitHub Actions + Terraform + Docker + ECS**, not TeamCity or Ansible AWX.
+The active repo path is **GitHub Actions + Terraform + Docker + Lambda/API Gateway/CloudFront**, not TeamCity or Ansible AWX.
 
 ---
 
@@ -201,12 +203,12 @@ The active repo path is **GitHub Actions + Terraform + Docker + ECS**, not TeamC
 | Next.js frontend | Implemented | `frontend/app/`, `frontend/components/`, `frontend/lib/` | Chat UI plus debug route |
 | Frontend tests | Implemented | `frontend/*.config.ts`, `frontend/e2e/`, `frontend/tests/` | Vitest + Playwright |
 | Backend tests | Implemented | `backend/tests/` | Unit, integration, rag, llm, red-team, tool tests |
-| Docker backend runtime | Implemented | `backend/Dockerfile` | Python 3.12 slim + Uvicorn |
+| Docker backend runtime | Implemented | `backend/Dockerfile`, `backend/Dockerfile.lambda` | Uvicorn for local/ECS compatibility; Lambda image for public deploys |
 | Terraform bootstrap/env split | Implemented | `terraform/bootstrap/`, `terraform/` | Shared bootstrap plus environment stack |
 | GitHub Actions workflows | Implemented | `.github/workflows/` | Bootstrap, plan, deploy, destroy |
 | Shared KB buckets | Implemented | `terraform/bootstrap/main.tf` | Create-once shared KB source and KB artifacts buckets |
-| CloudFront | Not currently implemented | N/A | Optional future path for frontend hosting |
-| Lambda | Not currently implemented | N/A | Optional future path for async/event-driven extensions |
+| CloudFront | Implemented | `terraform/modules/frontend_cloudfront/` | Public frontend and `/api/*` routing |
+| Lambda | Implemented | `backend/app/lambda_handler.py`, `terraform/modules/lambda_api/` | FastAPI adapter plus API Gateway HTTP API |
 
 ---
 
@@ -225,7 +227,7 @@ The repository is structured by **system responsibility**, not by technology.
 ### Folder Logic
 
 #### `/backend/app`
-Runtime application code deployed to ECS.
+Runtime application code deployed to Lambda for public environments, with the ASGI app still runnable locally through Uvicorn.
 
 Separated into:
 - `api/` -> HTTP layer
@@ -269,7 +271,7 @@ Infrastructure as Code for AWS.
 
 - `bootstrap/` -> shared create-once resources
 - `modules/` -> reusable environment modules
-- root stack -> environment-specific ECS/networking/runtime configuration
+- root stack -> environment-specific Lambda, API Gateway, CloudFront, and S3 configuration
 
 #### `/.github/workflows`
 Automation for bootstrap, plan, deploy, and destroy flows.
@@ -433,7 +435,7 @@ The recommended local path is:
 - Node 20+ for the frontend
 - local processed artifacts
 - local KB artifacts
-- mock Bedrock enabled
+- real Bedrock enabled for answer-quality checks
 
 ### Runtime Entrypoints and Config Sources
 
@@ -460,6 +462,9 @@ python -m pip install -r backend\requirements.dev.txt
 python scripts\dataset_transform.py --source-mode local --local-root backend\data\raw --output-dir backend\data\processed --environment local
 python scripts\kb_build.py
 python scripts\embeddings_generate.py
+
+$env:USE_MOCK_BEDROCK = "false"
+$env:BEDROCK_MODEL_ID = "anthropic.claude-3-5-haiku-20241022-v1:0"
 
 python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
 ```
@@ -492,6 +497,9 @@ python scripts\dataset_transform.py --source-mode local --local-root backend\dat
 python scripts\kb_build.py
 python scripts\embeddings_generate.py
 
+set USE_MOCK_BEDROCK=false
+set BEDROCK_MODEL_ID=anthropic.claude-3-5-haiku-20241022-v1:0
+
 python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -510,6 +518,7 @@ npm run dev
 ```
 
 Local backend configuration is sourced from `backend/.env.example` and the auto-loaded local `backend/.env`.
+For local acceptance, set `USE_MOCK_BEDROCK=false`, set an explicit `BEDROCK_MODEL_ID`, and verify the responding model through `response.debug.model_id` in the frontend debug page or chat API response.
 
 ---
 
@@ -586,12 +595,12 @@ This is managed by:
 
 The environment stack manages deployable runtime infrastructure:
 
-- ECS cluster/service/task definition
-- ALB and target groups
+- Lambda function using the backend ECR image
+- API Gateway HTTP API
+- CloudFront distribution
+- Private S3 frontend bucket
 - IAM wiring
 - Managed processed-artifacts bucket
-- Optional frontend bucket
-- Network/security groups
 
 This is managed by:
 
@@ -611,12 +620,12 @@ This is managed by:
 
 ---
 
-## 15. Known Non-Implemented or Future Extensions
+## 15. Known Future Extensions
 
-The following are valid integration directions, but they are **not currently implemented as first-class repo infrastructure**:
+The following are valid integration directions, but they are not the active v1 public deployment path:
 
-- **AWS Lambda**: no current runtime module, workflow, or deployment path in the repository
-- **CloudFront**: no current distribution module; an optional frontend bucket pattern exists, but CDN hosting is still a future extension
+- **ECS/Fargate**: retained as historical/optional Terraform modules, but no longer the active public environment path
+- **Custom domain**: Route53 and ACM are intentionally deferred; v1 uses the generated CloudFront URL
 - **Managed Bedrock Knowledge Base resources**: the repo currently supports local/shared KB artifact flows and can later add a Bedrock-managed KB if required
 - **Datadog**: not the current default observability path
 
@@ -633,7 +642,7 @@ The Payjack AI Financial Companion is:
 - Grounded using RAG for documentation and policy/help content
 - Structured using deterministic financial tools
 - Orchestrated through a controlled workflow engine
-- Deployable on ECS through GitHub Actions, Terraform, and Docker
+- Deployable on Lambda/API Gateway/CloudFront through GitHub Actions, Terraform, and Docker
 - Designed for compliance and auditability from day one
 
 It transforms raw transaction history into understandable financial insight without ever touching execution systems.

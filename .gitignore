@@ -2,6 +2,7 @@
 
 #Custom ignores for Payjack AI Companion
 KEY_CODE_COMMANDS.txt
+documentation/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -19,8 +20,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -53,6 +54,10 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 .pytest_tmp/
+.pytest_tmp*/
+pytest_tmp*/
+pytest-cache-files-*/
+backend/tests/runtime_assets/
 cover/
 
 # Translations
