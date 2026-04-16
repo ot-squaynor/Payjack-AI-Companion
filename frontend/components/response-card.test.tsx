@@ -52,4 +52,29 @@ describe("ResponseCard", () => {
     expect(screen.getByText("Fees Policy")).toBeInTheDocument();
     expect(screen.getByText("Debug")).toBeInTheDocument();
   });
+
+  it("hides the citations section when the response fell back to the base model", () => {
+    render(
+      <ResponseCard
+        showDebug
+        response={{
+          request_id: "req-2",
+          session_id: "session-2",
+          route: "rag",
+          answer: "I could not verify that in reliable Payjack documentation.",
+          tool_traces: [],
+          citations: [],
+          refusal: null,
+          debug: {
+            grounding_mode: "base",
+            retrieval_reason: "no_candidate_chunks"
+          }
+        }}
+      />
+    );
+
+    expect(screen.getByText(/reliable Payjack documentation/i)).toBeInTheDocument();
+    expect(screen.queryByText("Citations")).not.toBeInTheDocument();
+    expect(screen.getByText("Debug")).toBeInTheDocument();
+  });
 });

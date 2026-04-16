@@ -43,6 +43,96 @@ test("shows healthy backend status and completes a chat flow", async ({ page }) 
 });
 
 
+test("renders a grounded documentation answer with citations", async ({ page }) => {
+  await page.route(`${apiBaseUrl}/health`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        environment: "local"
+      })
+    });
+  });
+
+  await page.route(`${apiBaseUrl}/chat`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        request_id: "req-e2e-doc-1",
+        session_id: "session-e2e-doc-1",
+        route: "rag",
+        answer: "Based on Payjack documentation, fee explanations are available in the help center.",
+        tool_traces: [],
+        citations: [
+          {
+            doc_id: "fees_policy",
+            title: "Fees Policy",
+            snippet: "Payjack fee explanations are available in the help center.",
+            score: 0.92,
+            metadata: { type: "policy" }
+          }
+        ],
+        refusal: null,
+        debug: {
+          grounding_mode: "rag"
+        }
+      })
+    });
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Ask about your transactions, spending, or Payjack features...").fill("What is the Payjack fee policy?");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByText(/Based on Payjack documentation/)).toBeVisible();
+  await expect(page.getByText("Citations")).toBeVisible();
+  await expect(page.getByText("Fees Policy")).toBeVisible();
+});
+
+
+test("renders a base fallback answer without citations", async ({ page }) => {
+  await page.route(`${apiBaseUrl}/health`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "ok",
+        environment: "local"
+      })
+    });
+  });
+
+  await page.route(`${apiBaseUrl}/chat`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        request_id: "req-e2e-doc-2",
+        session_id: "session-e2e-doc-2",
+        route: "rag",
+        answer: "I could not verify that in reliable Payjack documentation.",
+        tool_traces: [],
+        citations: [],
+        refusal: null,
+        debug: {
+          grounding_mode: "base",
+          retrieval_reason: "no_candidate_chunks"
+        }
+      })
+    });
+  });
+
+  await page.goto("/");
+  await page.getByPlaceholder("Ask about your transactions, spending, or Payjack features...").fill("What are the Payjack features?");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByText(/could not verify/i)).toBeVisible();
+  await expect(page.getByText("Citations")).toHaveCount(0);
+});
+
+
 test("shows backend unavailable when the health check fails", async ({ page }) => {
   await page.route(`${apiBaseUrl}/health`, async (route) => {
     await route.fulfill({
