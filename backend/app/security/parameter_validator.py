@@ -1,3 +1,6 @@
+# app/security/parameter_validator.py
+# 2026-04-02
+"""Purpose: Validate parameters for deterministic backend paths to prevent abuse and ensure data integrity."""
 from __future__ import annotations
 
 import re
