@@ -1,0 +1,55 @@
+.git/
+.github/
+.gradio/
+.pytest_cache/
+.pytest_tmp/
+.pytest_tmp*/
+.venv/
+.vscode/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Local secrets and machine-specific config
+.env
+**/.env
+*.env.save
+
+# Test, coverage, and build outputs
+.coverage
+coverage.xml
+htmlcov/
+cover/
+frontend/.next/
+frontend/coverage/
+frontend/node_modules/
+frontend/out/
+frontend/test-results/
+frontend/tsconfig.tsbuildinfo
+
+# Runtime image only needs backend application/runtime dependencies.
+documentation/
+frontend/
+memory/
+prototype/
+scripts/
+terraform/
+backend/tests/
+backend/.pytest_cache/
+backend/.pytest_tmp/
+backend/.pytest_tmp*/
+
+# Local/generated data and KB artifacts are published to S3 separately.
+backend/data/embeddings/
+backend/data/processed/
+backend/data/raw/
+backend/kb/metadata/
+backend/kb/processed_docs/
+
+# Misc local artifacts
+*.log
+*.png
+*.tfstate
+*.tfstate.*
+crash.log

@@ -14,6 +14,12 @@ locals {
   force_destroy   = var.allow_force_destroy || var.environment != "prod"
   container_image = "${var.ecr_repository_url}:${var.image_tag}"
 
+  external_transactions_bucket_name = var.external_transactions_bucket_name == null || trimspace(var.external_transactions_bucket_name) == "" ? null : var.external_transactions_bucket_name
+  external_accounts_bucket_name     = var.external_accounts_bucket_name == null || trimspace(var.external_accounts_bucket_name) == "" ? null : var.external_accounts_bucket_name
+  external_fees_bucket_name         = var.external_fees_bucket_name == null || trimspace(var.external_fees_bucket_name) == "" ? null : var.external_fees_bucket_name
+  external_products_bucket_name     = var.external_products_bucket_name == null || trimspace(var.external_products_bucket_name) == "" ? null : var.external_products_bucket_name
+  external_metadata_bucket_name     = var.external_metadata_bucket_name == null || trimspace(var.external_metadata_bucket_name) == "" ? null : var.external_metadata_bucket_name
+
   app_environment = merge(
     {
       APP_NAME                   = var.app_name
@@ -29,12 +35,12 @@ locals {
       BEDROCK_MODEL_ID           = var.bedrock_model_id
       BEDROCK_EMBEDDING_MODEL_ID = var.bedrock_embedding_model_id
       EXTERNAL_TRANSACTIONS_BUCKET = coalesce(
-        var.external_transactions_bucket_name,
+        local.external_transactions_bucket_name,
         ""
       )
       EXTERNAL_TRANSACTIONS_PREFIX = var.external_transactions_prefix
       EXTERNAL_ACCOUNTS_BUCKET = coalesce(
-        var.external_accounts_bucket_name,
+        local.external_accounts_bucket_name,
         ""
       )
       EXTERNAL_ACCOUNTS_PREFIX = var.external_accounts_prefix
@@ -52,11 +58,11 @@ module "s3" {
   create_frontend_bucket            = false
   shared_kb_source_bucket_name      = var.shared_kb_source_bucket_name
   shared_kb_artifacts_bucket_name   = var.shared_kb_artifacts_bucket_name
-  external_transactions_bucket_name = var.external_transactions_bucket_name
-  external_accounts_bucket_name     = var.external_accounts_bucket_name
-  external_fees_bucket_name         = var.external_fees_bucket_name
-  external_products_bucket_name     = var.external_products_bucket_name
-  external_metadata_bucket_name     = var.external_metadata_bucket_name
+  external_transactions_bucket_name = local.external_transactions_bucket_name
+  external_accounts_bucket_name     = local.external_accounts_bucket_name
+  external_fees_bucket_name         = local.external_fees_bucket_name
+  external_products_bucket_name     = local.external_products_bucket_name
+  external_metadata_bucket_name     = local.external_metadata_bucket_name
   tags                              = local.base_tags
 }
 

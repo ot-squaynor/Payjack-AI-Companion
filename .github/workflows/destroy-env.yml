@@ -113,13 +113,46 @@ jobs:
         working-directory: terraform
         run: terraform output -json > tf-outputs.json || echo '{}' > tf-outputs.json
 
+      - name: Guard external tool pipeline buckets
+        run: |
+          managed_buckets=(
+            "$(jq -r '.processed_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)"
+            "$(jq -r '.frontend_bucket_name.value // empty' terraform/tf-outputs.json)"
+          )
+
+          external_buckets=(
+            "${TF_VAR_external_transactions_bucket_name}"
+            "${TF_VAR_external_accounts_bucket_name}"
+            "${TF_VAR_external_fees_bucket_name}"
+            "${TF_VAR_external_products_bucket_name}"
+            "${TF_VAR_external_metadata_bucket_name}"
+          )
+
+          for external_bucket in "${external_buckets[@]}"; do
+            if [[ -z "${external_bucket}" ]]; then
+              continue
+            fi
+            for managed_bucket in "${managed_buckets[@]}"; do
+              if [[ -n "${managed_bucket}" && "${managed_bucket}" == "${external_bucket}" ]]; then
+                echo "Refusing destroy: managed bucket output matches external tool pipeline bucket '${external_bucket}'."
+                exit 1
+              fi
+            done
+          done
+
+          echo "External tool pipeline buckets are not targeted by this destroy workflow."
+
       - name: Empty managed buckets for non-prod destroy
         if: ${{ inputs.environment != 'prod' }}
         run: |
-          for bucket in \
-            "$(jq -r '.processed_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)" \
-            "$(jq -r '.frontend_bucket_name.value // empty' terraform/tf-outputs.json)"; do
+          managed_buckets=(
+            "$(jq -r '.processed_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)"
+            "$(jq -r '.frontend_bucket_name.value // empty' terraform/tf-outputs.json)"
+          )
+
+          for bucket in "${managed_buckets[@]}"; do
             if [[ -n "${bucket}" ]]; then
+              echo "Emptying managed environment bucket: ${bucket}"
               aws s3 rm "s3://${bucket}" --recursive || true
             fi
           done

@@ -215,6 +215,16 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+# Local Terraform input/backend files. Keep terraform/terraform.tfvars as the
+# checked-in non-binding example; put real values in ignored local files.
+terraform/*.local.tfvars
+terraform/local*.tfvars
+terraform/bootstrap/*.local.tfvars
+terraform/bootstrap/local*.tfvars
+terraform/bootstrap/backend*.hcl
+terraform/oidc-setup/*.tfvars
+terraform/oidc-setup/backend*.hcl
+
 # Local processed and KB artifacts
 backend/data/processed/
 backend/kb/processed_docs/

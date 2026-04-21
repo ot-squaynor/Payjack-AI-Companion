@@ -25,28 +25,33 @@ variable "shared_kb_artifacts_bucket_name" {
 }
 
 variable "external_transactions_bucket_name" {
-  type    = string
-  default = null
+  description = "Existing read-only transactions bucket. This module must never create, empty, or destroy it."
+  type        = string
+  default     = null
 }
 
 variable "external_accounts_bucket_name" {
-  type    = string
-  default = null
+  description = "Existing read-only accounts bucket. This module must never create, empty, or destroy it."
+  type        = string
+  default     = null
 }
 
 variable "external_fees_bucket_name" {
-  type    = string
-  default = null
+  description = "Existing read-only fees/limits bucket. This module must never create, empty, or destroy it."
+  type        = string
+  default     = null
 }
 
 variable "external_products_bucket_name" {
-  type    = string
-  default = null
+  description = "Existing read-only products bucket. This module must never create, empty, or destroy it."
+  type        = string
+  default     = null
 }
 
 variable "external_metadata_bucket_name" {
-  type    = string
-  default = null
+  description = "Existing read-only metadata bucket. This module must never create, empty, or destroy it."
+  type        = string
+  default     = null
 }
 
 variable "tags" {

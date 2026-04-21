@@ -4,6 +4,8 @@ locals {
   bucket_prefix = lower(replace("${var.name_prefix}-${var.environment}-${data.aws_caller_identity.current.account_id}", "_", "-"))
 }
 
+# External tool-pipeline buckets are read-only data sources. Terraform must
+# never create, empty, or destroy transaction/account/source-data buckets here.
 data "aws_s3_bucket" "external_transactions" {
   count  = var.external_transactions_bucket_name == null ? 0 : 1
   bucket = var.external_transactions_bucket_name
