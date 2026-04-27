@@ -71,6 +71,7 @@ import pandas as pd
 
 
 COL_TRANSACTION_ID = "transaction_id"
+COL_ACCOUNT_ID = "account_id"
 COL_TIMESTAMP = "timestamp"
 COL_AMOUNT = "amount"
 COL_DIRECTION = "direction"
@@ -81,6 +82,7 @@ COL_SUBCATEGORY_MAPPED = "subcategory_mapped"
 REQUIRED_INPUT_COLUMNS: frozenset[str] = frozenset(
     {
         COL_TRANSACTION_ID,
+        COL_ACCOUNT_ID,
         COL_TIMESTAMP,
         COL_AMOUNT,
         COL_DIRECTION,
@@ -233,18 +235,38 @@ def coerce_recurring_logic_types(df: pd.DataFrame) -> pd.DataFrame:
 
 ##BRICK 5: Recurrence Grouping and Stability Checks
 def build_recurrence_group_key(
+    account_id: object,
     merchant_mapped: object,
     category_mapped: object,
     subcategory_mapped: object,
     direction_value: object,
+    amount: object,
 ) -> str:
     """Build a deterministic recurrence grouping key from stable transaction attributes."""
+    account = normalize_mapping_value(account_id)
     merchant = normalize_mapping_value(merchant_mapped)
     category = normalize_mapping_value(category_mapped)
     subcategory = normalize_mapping_value(subcategory_mapped)
     direction = normalize_mapping_value(direction_value)
+    amount_key = _normalize_amount_key(amount)
 
-    return f"{merchant}|{category}|{subcategory}|{direction}"
+    return f"{account}|{merchant}|{category}|{subcategory}|{direction}|{amount_key}"
+
+
+def _normalize_amount_key(value: object) -> str:
+    """Normalize amount values for recurrence stream grouping."""
+
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return str(value).strip().lower()
 
 
 def amounts_within_tolerance(
@@ -399,6 +421,9 @@ def assess_group_recurrence(
         and cadence != CADENCE_NONE
         and amount_stable
     )
+    if not is_recurring:
+        cadence = CADENCE_NONE
+        confidence = CONFIDENCE_LOW
 
     reference_amount = float(amounts[0]) if amounts else 0.0
     avg_interval = float(sum(intervals) / len(intervals)) if intervals else 0.0
@@ -427,10 +452,12 @@ def detect_recurring_transactions(
 
     working_df[COL_RECURRING_GROUP_KEY] = working_df.apply(
         lambda row: build_recurrence_group_key(
+            account_id=row[COL_ACCOUNT_ID],
             merchant_mapped=row[COL_MERCHANT_MAPPED],
             category_mapped=row[COL_CATEGORY_MAPPED],
             subcategory_mapped=row[COL_SUBCATEGORY_MAPPED],
             direction_value=row[COL_DIRECTION],
+            amount=row[COL_AMOUNT],
         ),
         axis=1,
     )

@@ -192,7 +192,7 @@ def _write_dataset_artifacts(
             filename=output_path.name,
             row_count=len(dataset_df),
             columns=list(dataset_df.columns),
-            local_path=str(output_path),
+            local_path=str(output_path.resolve()),
         )
 
     return artifacts

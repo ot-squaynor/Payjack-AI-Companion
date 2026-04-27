@@ -19,6 +19,14 @@ def test_routes_spend_summary_with_category_and_date_filters() -> None:
     assert "end_date" in decision.tool_arguments
 
 
+def test_routes_recurring_payment_amount_threshold() -> None:
+    decision = route_message("Show me all recurring payments above 50 cedis on my account")
+
+    assert decision.route == "tool"
+    assert decision.tool_name == "recurring_detection"
+    assert decision.tool_arguments["min_average_amount"] == "50"
+
+
 def test_routes_documentation_queries_to_rag() -> None:
     decision = route_message("What is the Payjack fee policy?")
 

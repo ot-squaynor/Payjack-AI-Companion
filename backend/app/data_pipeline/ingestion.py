@@ -40,6 +40,7 @@ Non-goals:
 """
 #IMPORTS:
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass
@@ -138,6 +139,7 @@ COLUMN_ALIASES: Dict[str, str] = {
     "transaction_id": "transaction_id",
 
     # Account identifiers
+    "actorid": "account_id",
     "accountid": "account_id",
     "acct_id": "account_id",
     "account_id": "account_id",
@@ -147,10 +149,12 @@ COLUMN_ALIASES: Dict[str, str] = {
     "datetime": "timestamp",
     "created_at": "timestamp",
     "timestamp": "timestamp",
+    "transferdatetime": "timestamp",
 
     # Monetary values
     "amt": "amount",
     "amount": "amount",
+    "transferamount": "amount",
     "ccy": "currency",
     "currency": "currency",
 
@@ -160,6 +164,7 @@ COLUMN_ALIASES: Dict[str, str] = {
     "narration": "description",
     "description": "description",
     "category": "category",
+    "transactiontype": "category",
 
     # Accounts
     "accountname": "account_name",
@@ -291,6 +296,56 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     out = df.copy()
     out.columns = [standardize_column_name(c) for c in out.columns]
+    return out
+
+
+def _stable_row_id(row: pd.Series, *, prefix: str) -> str:
+    """Build a deterministic row identifier for source exports that lack one."""
+
+    identity_parts = [
+        str(row.get(column, "")).strip()
+        for column in (
+            "account_id",
+            "timestamp",
+            "amount",
+            "currency",
+            "category",
+            "_source_name",
+        )
+    ]
+    identity_parts.append(str(row.name))
+    digest = hashlib.sha256("|".join(identity_parts).encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
+def _adapt_payjack_transfer_export(df: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:
+    """Adapt the local Payjack transfer export shape into the canonical transaction contract."""
+
+    if spec.name != "transactions":
+        return df
+
+    source_export_columns = {"account_id", "amount", "timestamp", "category", "firstname", "lastname"}
+    if not source_export_columns.issubset(df.columns):
+        return df
+
+    out = df.copy()
+
+    if "transaction_id" not in out.columns:
+        out["transaction_id"] = out.apply(_stable_row_id, axis=1, prefix="txn")
+
+    if "currency" not in out.columns:
+        out["currency"] = "GHS"
+
+    if "merchant" not in out.columns:
+        out["merchant"] = out["category"]
+
+    if "description" not in out.columns:
+        out["description"] = out["category"]
+
+    if "status" not in out.columns:
+        out["status"] = "posted"
+
+    out["amount"] = -pd.to_numeric(out["amount"], errors="coerce").abs()
     return out
 def _join_s3_prefix(*parts: str) -> str:
     """
@@ -874,6 +929,7 @@ def ingest_dataset(
 
     # Canonicalize schema before validation
     df = standardize_columns(df)
+    df = _adapt_payjack_transfer_export(df, spec)
 
     # Conservative type coercion
     df = _coerce_dates(df, spec.date_columns)

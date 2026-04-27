@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { getHealth, sendChat } from "@/lib/api";
 import type { ConversationMessage, HealthResponse } from "@/lib/types";
@@ -17,6 +17,8 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasAvatar, setHasAvatar] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([
     {
       id: "assistant-intro",
@@ -36,6 +38,37 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         setHealthError(error.message);
       });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (typeof window === "undefined" || typeof window.fetch !== "function") {
+      return;
+    }
+
+    window
+      .fetch("/avatar.png", { method: "HEAD" })
+      .then((response) => {
+        if (!cancelled) {
+          setHasAvatar(response.ok);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHasAvatar(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      inputRef.current?.focus();
+    }
+  }, [loading]);
 
   const handleSubmit = async () => {
     if (!input.trim() || loading) {
@@ -97,8 +130,14 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         </div>
       </div>
 
-      <MessageList messages={messages} showDebug={showDebug} />
-      <MessageInput value={input} onChange={setInput} onSubmit={handleSubmit} disabled={loading} />
+      <MessageList messages={messages} showDebug={showDebug} hasAvatar={hasAvatar} />
+      <MessageInput
+        ref={inputRef}
+        value={input}
+        onChange={setInput}
+        onSubmit={handleSubmit}
+        disabled={loading}
+      />
     </section>
   );
 }

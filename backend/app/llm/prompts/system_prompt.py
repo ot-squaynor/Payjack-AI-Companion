@@ -12,7 +12,10 @@ def build_system_prompt(route: str, grounding_mode: str) -> str:
     ]
 
     if grounding_mode == "rag":
-        instructions.append("Use only the accepted Payjack documentation supplied in the user prompt for documentation claims.")
+        instructions.append("Use only the accepted Payjack documentation supplied in the user prompt for documentation claims. " \
+        "Make no claims about Payjack-specific facts that are not supported by the accepted documentation. " \
+        "Present unverified Payjack-specific facts as 'unverified' and do not claim them as documentation grounding. " \
+        "Make sure to give the user the option to ask for more information if they want to know more about a specific fact.")
     elif grounding_mode == "base":
         instructions.append(
             "Do not claim documentation grounding in this mode. For unverified Payjack-specific facts, say reliable documentation was not found."

@@ -6,9 +6,13 @@
   --text: #1f1d19;
   --text-muted: #6f6658;
   --accent: #0f5b52;
+  --accent-strong: #0d443e;
   --accent-soft: #d8ebe7;
   --border: #d7cfbf;
   --error: #9f2a1d;
+  --focus-ring: rgba(15, 91, 82, 0.24);
+  --assistant-avatar: #0f5b52;
+  --user-avatar: #6f6658;
   --shadow: 0 18px 60px rgba(39, 32, 22, 0.12);
 }
 
@@ -102,6 +106,8 @@ a {
 
 .message-row {
   display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .message-row.user {
@@ -120,7 +126,7 @@ a {
 }
 
 .user-bubble {
-  background: linear-gradient(135deg, #1f5f57, #0d443e);
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
   color: #fffdf8;
 }
 
@@ -132,6 +138,33 @@ a {
 
 .response-card {
   width: 100%;
+}
+
+.message-row.assistant .response-card {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.message-avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.assistant-avatar {
+  background: var(--assistant-avatar);
+}
+
+.user-avatar {
+  background: var(--user-avatar);
 }
 
 .response-answer p {
@@ -183,6 +216,11 @@ pre {
   font: inherit;
 }
 
+.message-input textarea:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  border-color: var(--accent);
+}
+
 .message-input button {
   justify-self: end;
   border: 0;
@@ -193,6 +231,11 @@ pre {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+
+.message-input button:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .message-input button:disabled {

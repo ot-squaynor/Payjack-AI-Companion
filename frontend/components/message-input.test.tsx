@@ -28,6 +28,22 @@ describe("MessageInput", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it("submits with Enter and preserves Shift+Enter for multiline entry", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<MessageInput value="Show my spending" onChange={vi.fn()} onSubmit={onSubmit} />);
+
+    const textarea = screen.getByPlaceholderText("Ask about your transactions, spending, or Payjack features...");
+    textarea.focus();
+
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.keyboard("{Enter}");
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   it("disables input controls while loading", () => {
     render(<MessageInput value="Working..." onChange={vi.fn()} onSubmit={vi.fn()} disabled />);
 

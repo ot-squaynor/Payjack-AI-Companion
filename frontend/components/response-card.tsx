@@ -21,7 +21,7 @@ export function ResponseCard({ response, showDebug = false }: ResponseCardProps)
         </div>
       ) : null}
 
-      {response.tool_traces.length > 0 ? (
+      {showDebug && response.tool_traces.length > 0 ? (
         <div className="response-section">
           <strong>Tool Traces</strong>
           {response.tool_traces.map((trace) => (

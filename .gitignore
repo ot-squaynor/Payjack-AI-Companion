@@ -120,7 +120,9 @@ celerybeat.pid
 
 # Environments
 **/.env
+**/.env.local
 .env
+.env.local
 .venv
 .vscode/
 .venv/
@@ -198,6 +200,7 @@ local/
 
 .env
 **/.env
+**/.env.local
 
 # Next.js / frontend build outputs
 frontend/node_modules/

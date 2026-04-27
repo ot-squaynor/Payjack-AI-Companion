@@ -10,6 +10,9 @@ DATE_KEYWORD_PATTERNS = {
     "last_month": re.compile(r"\blast month\b"),
     "this_month": re.compile(r"\bthis month\b"),
 }
+AMOUNT_ABOVE_RE = re.compile(
+    r"\b(?:above|over|more than|greater than)\s+(?P<amount>\d+(?:\.\d+)?)\s*(?:cedis?|ghs)?\b"
+)
 LAST_N_RE = re.compile(r"\blast\s+(\d+)\b")
 MONTH_NAME_TO_NUMBER = {
     "january": 1,
@@ -76,6 +79,13 @@ def _extract_common_filters(message: str) -> dict[str, object]:
     return filters
 
 
+def _extract_minimum_amount_filter(message: str) -> dict[str, object]:
+    match = AMOUNT_ABOVE_RE.search(message)
+    if match is None:
+        return {}
+    return {"min_average_amount": match.group("amount")}
+
+
 def _extract_month_range_filters(message: str, *, current_date: date) -> dict[str, object]:
     for pattern in MONTH_RANGE_PATTERNS:
         match = pattern.search(message)
@@ -103,11 +113,12 @@ def route_message(message: str) -> RouteDecision:
     common_filters = _extract_common_filters(lowered)
 
     if "recurring" in lowered or "subscription" in lowered:
+        recurring_filters = {**common_filters, **_extract_minimum_amount_filter(lowered)}
         return RouteDecision(
             route="tool",
             reason="recurring_keywords",
             tool_name="recurring_detection",
-            tool_arguments=common_filters,
+            tool_arguments=recurring_filters,
         )
 
     if "last" in lowered and "transaction" in lowered:

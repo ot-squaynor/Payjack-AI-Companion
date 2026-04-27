@@ -116,7 +116,9 @@ class ProcessedStore:
             raise ProcessedStoreError(f"No artifact named '{dataset_name}' exists in the processed manifest.")
 
         if self.location.mode == "local":
-            dataset_path = Path(artifact.local_path or (self.location.local_root / artifact.filename))  # type: ignore[arg-type]
+            dataset_path = Path(artifact.local_path) if artifact.local_path else None
+            if dataset_path is None or (not dataset_path.is_absolute() and not dataset_path.exists()):
+                dataset_path = self.location.local_root / artifact.filename  # type: ignore[operator]
             dataframe = self._read_local_dataset(dataset_path)
         else:
             s3_key = artifact.s3_key or (

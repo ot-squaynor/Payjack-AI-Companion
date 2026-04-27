@@ -99,6 +99,7 @@ class RecurringDetectionRequest:
     confidences: tuple[str, ...] = ()
     direction: Literal["debit", "credit"] | None = DEFAULT_DIRECTION
     include_irregular: bool = DEFAULT_INCLUDE_IRREGULAR
+    min_average_amount: Decimal | None = None
     start_date: str | None = None
     end_date: str | None = None
     limit: int = DEFAULT_LIMIT
@@ -188,6 +189,20 @@ def _normalize_boolean(value: Any, field_name: str) -> bool:
     raise RecurringDetectionInputError(f"{field_name} must be a boolean.")
 
 
+def _normalize_optional_decimal(value: Any, field_name: str) -> Decimal | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        normalized = Decimal(str(value)).quantize(Decimal("0.01"))
+    except Exception as exc:
+        raise RecurringDetectionInputError(f"{field_name} must be a valid decimal amount.") from exc
+    if normalized < Decimal("0.00"):
+        raise RecurringDetectionInputError(f"{field_name} must be greater than or equal to zero.")
+    return normalized
+
+
 def normalize_recurring_detection_request(
     *,
     user_id: str | None = None,
@@ -198,6 +213,7 @@ def normalize_recurring_detection_request(
     confidences: Any = None,
     direction: str | None = DEFAULT_DIRECTION,
     include_irregular: Any = DEFAULT_INCLUDE_IRREGULAR,
+    min_average_amount: Any = None,
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = DEFAULT_LIMIT,
@@ -267,6 +283,7 @@ def normalize_recurring_detection_request(
         confidences=normalized_confidences,
         direction=normalized_direction,
         include_irregular=_normalize_boolean(include_irregular, "include_irregular"),
+        min_average_amount=_normalize_optional_decimal(min_average_amount, "min_average_amount"),
         start_date=cleaned_start_date,
         end_date=cleaned_end_date,
         limit=limit,
@@ -671,6 +688,19 @@ def aggregate_recurring_payment_records(
     return tuple(records)
 
 
+def filter_recurring_payment_records(
+    records: tuple[RecurringPaymentRecord, ...],
+    *,
+    min_average_amount: Decimal | None,
+) -> tuple[RecurringPaymentRecord, ...]:
+    """Filter recurring streams by their aggregate average amount."""
+
+    if min_average_amount is None:
+        return records
+
+    return tuple(record for record in records if record.average_amount > min_average_amount)
+
+
 def limit_recurring_payment_records(
     records: tuple[RecurringPaymentRecord, ...],
     *,
@@ -746,6 +776,7 @@ def build_applied_filters(
         "confidences": request.confidences,
         "direction": request.direction,
         "include_irregular": request.include_irregular,
+        "min_average_amount": str(request.min_average_amount) if request.min_average_amount is not None else None,
         "start_date": request.start_date,
         "end_date": request.end_date,
         "limit": request.limit,
@@ -763,6 +794,10 @@ def detect_recurring_payments(
 
     filtered_df = apply_recurring_filters(df, request)
     records = aggregate_recurring_payment_records(filtered_df)
+    records = filter_recurring_payment_records(
+        records,
+        min_average_amount=request.min_average_amount,
+    )
     sorted_records = sort_recurring_payment_records(
         records,
         sort_by=request.sort_by,

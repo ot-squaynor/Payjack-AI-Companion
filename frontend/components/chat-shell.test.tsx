@@ -60,6 +60,10 @@ describe("ChatShell", () => {
       expect(screen.getByText("Here are your last 2 transactions.")).toBeInTheDocument();
     });
 
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Ask about your transactions, spending, or Payjack features...")).toHaveFocus();
+    });
+
     expect(sendChatMock).toHaveBeenCalledWith({
       message: "Show my last 2 transactions",
       session_id: null

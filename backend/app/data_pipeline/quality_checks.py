@@ -120,6 +120,7 @@ REQUIRED_PROCESSED_COLUMNS: frozenset[str] = frozenset(
 )
 ##BRICK 3: Default Configuration Values
 DEFAULT_MAX_SAMPLE_IDS_PER_FINDING = 5
+DEFAULT_MIN_RECURRING_OCCURRENCE_COUNT = 3
 DEFAULT_MIN_TIMESTAMP = "2000-01-01"
 DEFAULT_ALLOW_FUTURE_TIMESTAMPS = False
 
@@ -463,7 +464,7 @@ def check_recurrence_consistency(
 
     low_occurrence_mask = recurring_true_mask & (
         pd.to_numeric(df[COL_RECURRING_OCCURRENCE_COUNT], errors="coerce")
-        < config.max_sample_ids_per_finding
+        < DEFAULT_MIN_RECURRING_OCCURRENCE_COUNT
     )
     if low_occurrence_mask.any():
         row_ids = df.loc[low_occurrence_mask, COL_TRANSACTION_ID].tolist()
