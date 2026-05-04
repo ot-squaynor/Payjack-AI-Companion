@@ -1,10 +1,10 @@
-variable "project_name" {
+variable "app_name" {
   description = "Name prefix for all resources."
   type        = string
   default     = "payjack-ai-companion"
 
   validation {
-    condition     = can(regex("^[a-z0-9-]+$", var.project_name))
+    condition     = can(regex("^[a-z0-9-]+$", var.app_name))
     error_message = "App name must contain only lowercase letters, numbers, and hyphens."
   }
 }

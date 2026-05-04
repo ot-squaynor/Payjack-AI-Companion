@@ -35,15 +35,13 @@ locals {
       ENABLE_DEBUG_TRACES        = tostring(var.enable_debug_traces)
       BEDROCK_MODEL_ID           = var.bedrock_model_id
       BEDROCK_EMBEDDING_MODEL_ID = var.bedrock_embedding_model_id
-      EXTERNAL_TRANSACTIONS_BUCKET = coalesce(
-        local.external_transactions_bucket_name,
-        ""
-      )
+    },
+    local.external_transactions_bucket_name == null ? {} : {
+      EXTERNAL_TRANSACTIONS_BUCKET = local.external_transactions_bucket_name
       EXTERNAL_TRANSACTIONS_PREFIX = var.external_transactions_prefix
-      EXTERNAL_ACCOUNTS_BUCKET = coalesce(
-        local.external_accounts_bucket_name,
-        ""
-      )
+    },
+    local.external_accounts_bucket_name == null ? {} : {
+      EXTERNAL_ACCOUNTS_BUCKET = local.external_accounts_bucket_name
       EXTERNAL_ACCOUNTS_PREFIX = var.external_accounts_prefix
     },
     var.extra_environment
@@ -81,9 +79,9 @@ module "lambda_api" {
     {
       PROCESSED_S3_BUCKET         = module.s3.processed_artifacts_bucket_name
       MANAGED_PROCESSED_BUCKET    = module.s3.processed_artifacts_bucket_name
-      MANAGED_KB_SOURCE_BUCKET    = coalesce(module.s3.kb_source_bucket_name, "")
-      MANAGED_KB_ARTIFACTS_BUCKET = coalesce(module.s3.kb_artifacts_bucket_name, "")
-      KB_S3_BUCKET                = coalesce(module.s3.kb_artifacts_bucket_name, "")
+      MANAGED_KB_SOURCE_BUCKET    = module.s3.kb_source_bucket_name == null ? "" : module.s3.kb_source_bucket_name
+      MANAGED_KB_ARTIFACTS_BUCKET = module.s3.kb_artifacts_bucket_name == null ? "" : module.s3.kb_artifacts_bucket_name
+      KB_S3_BUCKET                = module.s3.kb_artifacts_bucket_name == null ? "" : module.s3.kb_artifacts_bucket_name
       KB_S3_PREFIX                = "${var.environment}/processed_docs"
     }
   )
