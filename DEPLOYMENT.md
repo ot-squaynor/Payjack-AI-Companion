@@ -19,7 +19,7 @@ infrastructure, but they are not the active deploy path.
 
 ## Required AWS/GitHub Setup
 
-Create or confirm the GitHub Actions OIDC role first, then configure the GitHub
+Use the externally provisioned GitHub Actions role, then configure the GitHub
 environment used by the workflows.
 
 Required GitHub environment secret:
@@ -202,8 +202,6 @@ Keep real local deployment values out of Git. Use ignored files such as:
 terraform/local.dev.tfvars
 terraform/bootstrap/local.tfvars
 terraform/bootstrap/backend-shared.hcl
-terraform/oidc-setup/*.tfvars
-terraform/oidc-setup/backend*.hcl
 backend/.env
 ```
 
@@ -216,12 +214,7 @@ reproducible provider selection for a stack:
 ```text
 terraform/.terraform.lock.hcl
 terraform/bootstrap/.terraform.lock.hcl
-terraform/oidc-setup/.terraform.lock.hcl
 ```
-
-The `terraform/oidc-setup` directory is a one-time setup helper if you choose to
-keep it. Review and tighten its IAM permissions before treating it as production
-infrastructure.
 
 ## Docker Image Hygiene
 

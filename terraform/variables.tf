@@ -1,10 +1,10 @@
-variable "app_name" {
+variable "project_name" {
   description = "Name prefix for all resources."
   type        = string
   default     = "payjack-ai-companion"
 
   validation {
-    condition     = can(regex("^[a-z0-9-]+$", var.app_name))
+    condition     = can(regex("^[a-z0-9-]+$", var.project_name))
     error_message = "App name must contain only lowercase letters, numbers, and hyphens."
   }
 }
@@ -22,7 +22,7 @@ variable "environment" {
 variable "aws_region" {
   description = "AWS region for regional resources."
   type        = string
-  default     = "us-east-1"
+  default     = "eu-west-2"
 }
 
 variable "ecr_repository_url" {

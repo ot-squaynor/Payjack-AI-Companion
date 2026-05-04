@@ -124,7 +124,7 @@ class Settings:
             use_mock_bedrock=_get_bool("USE_MOCK_BEDROCK", True),
             use_local_rag=_get_bool("USE_LOCAL_RAG", True),
             enable_debug_traces=_get_bool("ENABLE_DEBUG_TRACES", True),
-            aws_region=os.getenv("AWS_REGION", "us-east-1"),
+            aws_region=os.getenv("AWS_REGION", "eu-west-2"),
             bedrock_model_id=os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-haiku-20241022-v1:0"),
             bedrock_embedding_model_id=os.getenv("BEDROCK_EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0"),
             bedrock_timeout_seconds=_get_int("BEDROCK_TIMEOUT_SECONDS", 30),

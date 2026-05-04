@@ -28,7 +28,7 @@ if (-not $env:TF_VAR_app_name) {
 }
 
 if (-not $env:TF_VAR_aws_region) {
-    $env:TF_VAR_aws_region = if ($env:AWS_REGION) { $env:AWS_REGION } else { "us-east-1" }
+    $env:TF_VAR_aws_region = if ($env:AWS_REGION) { $env:AWS_REGION } else { "eu-west-2" }
 }
 
 $env:TF_VAR_environment = $Environment

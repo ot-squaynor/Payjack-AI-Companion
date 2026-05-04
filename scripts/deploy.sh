@@ -16,7 +16,7 @@ if [[ -z "${TF_VAR_ecr_repository_url:-}" ]]; then
 fi
 
 export TF_VAR_app_name="${TF_VAR_app_name:-payjack-ai-companion}"
-export TF_VAR_aws_region="${TF_VAR_aws_region:-${AWS_REGION:-us-east-1}}"
+export TF_VAR_aws_region="${TF_VAR_aws_region:-${AWS_REGION:-eu-west-2}}"
 export TF_VAR_environment="${ENVIRONMENT}"
 export TF_VAR_image_tag="${IMAGE_TAG}"
 

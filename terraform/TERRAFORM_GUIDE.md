@@ -45,17 +45,13 @@ terraform/
 │       ├── main.tf
 │       ├── variables.tf
 │       └── outputs.tf
-├── oidc-setup/
-│   ├── .terraform.lock.hcl        # OIDC provider lock — pins aws 6.41.0
-│   ├── terraform.tfstate           # Local state — Phase 2 has been applied
-│   └── main.tf                    # GitHub Actions OIDC trust (run once, single file)
 ├── main.tf                        # Root environment orchestrator
 ├── variables.tf                   # All environment inputs
 ├── outputs.tf                     # Published resource identifiers
 ├── versions.tf                    # Provider and backend version pins
 ├── terraform.tfvars               # Intentionally non-binding — CI uses TF_VAR_* instead
 ├── terraform.tfvars.example       # Example values with 123456789012 placeholder account
-└── local.dev.tfvars               # Real local dev values (account 509399591563)
+└── local.dev.tfvars               # Real local dev values (ignored, machine-specific)
 ```
 
 ---
@@ -99,20 +95,20 @@ The prefix markers pre-create the folder structure that `scripts/kb_build.py` wr
 
 **`bootstrap/backend-shared.hcl`**
 ```
-bucket         = "payjack-ai-companion-tf-state-509399591563-eu-west-1"
+bucket         = "payjack-ai-companion-tf-state-<account-id>-eu-west-2"
 key            = "bootstrap/shared/terraform.tfstate"
-region         = "eu-west-1"
+region         = "eu-west-2"
 dynamodb_table = "payjack-ai-companion-tf-locks"
 ```
 Passed at init time: `terraform init -backend-config=backend-shared.hcl`
 
 **`bootstrap/local.tfvars`**
 Real account values for local bootstrap runs:
-- Account: `509399591563`, region: `eu-west-1`
-- State bucket: `payjack-ai-companion-tf-state-509399591563-eu-west-1`
+- Account: `<account-id>`, region: `eu-west-2`
+- State bucket: `payjack-ai-companion-tf-state-<account-id>-eu-west-2`
 - Lock table: `payjack-ai-companion-tf-locks`
 - ECR: `payjack-ai-companion-backend`
-- KB buckets: `payjack-ai-companion-509399591563-kb-source/artifacts`
+- KB buckets: `payjack-ai-companion-<account-id>-kb-source/artifacts`
 
 **`bootstrap/terraform.tfvars.example`**
 Safe template with `REPLACE_ME` placeholders for the state bucket name and KB bucket names. New environments copy this and fill in their account-specific values.
@@ -122,36 +118,19 @@ Exports: `tf_state_bucket_name`, `tf_lock_table_name`, `ecr_repository_url`, `kb
 
 ---
 
-### Phase 2 — OIDC Trust
+### Phase 2 — External GitHub OIDC Role
 
-**Folder:** `oidc-setup/`
-**Status: Applied** — `oidc-setup/terraform.tfstate` is present, confirming this has already been run against the account
-**State:** Local — `oidc-setup/` has no `backend "s3" {}` block, so state lives in `oidc-setup/terraform.tfstate` on disk. The lock file pins aws `6.41.0`
+The GitHub OIDC provider and GitHub Actions IAM role are now treated as external
+account prerequisites, not Terraform resources managed by this repository.
 
-Everything lives in a single `main.tf`. There are no separate `variables.tf` or `outputs.tf` files — variables and outputs are declared inline.
+This repository expects GitHub Actions to receive an `AWS_ROLE_ARN` secret for
+each environment and uses `aws-actions/configure-aws-credentials@v4` to assume
+that role during `bootstrap-shared.yml`, `plan-env.yml`, `deploy-env.yml`, and
+`destroy-env.yml`.
 
-#### What it creates
-
-| Resource | Detail |
-|---|---|
-| `aws_iam_openid_connect_provider.github` | Trusts `token.actions.githubusercontent.com` with `sts.amazonaws.com` as the audience and the GitHub thumbprint |
-| `aws_iam_role.github_actions` | Role name defaults to `github-actions-payjack-deploy` |
-| Trust policy | Allows `sts:AssumeRoleWithWebIdentity` for refs matching `repo:{github_repository}:ref:refs/heads/main` and the three environment conditions (`dev`, `test`, `prod`) |
-| Managed policy attachments | `AWSLambda_FullAccess`, `AmazonS3FullAccess`, `AmazonAPIGatewayAdministrator`, `CloudFrontFullAccess`, `AmazonBedrockFullAccess`, `AmazonDynamoDBFullAccess`, `AmazonEC2ContainerRegistryPowerUser` |
-| Inline policy `github-actions-payjack-additional` | IAM role lifecycle (`CreateRole`, `DeleteRole`, `GetRole`, `PutRolePolicy`, `AttachRolePolicy`, `PassRole`, etc.), CloudWatch log group management, `sts:GetCallerIdentity` |
-
-One notable detail: there is a `data "aws_iam_openid_connect_provider" "github_existing"` block with `count = 0`. This is zeroed out and performs no lookup — it is a placeholder left in case the provider already exists in the account and needs to be imported rather than created.
-
-**Inputs (declared as `variable` blocks in `main.tf`):**
-- `github_repository` — required, format `owner/repo`
-- `aws_region` — default `eu-west-1`
-- `role_name` — default `github-actions-payjack-deploy`
-
-**Outputs (declared in `main.tf`):**
-- `github_actions_role_arn`
-- `aws_account_id`
-
-Once applied, every GitHub Actions workflow can use `aws-actions/configure-aws-credentials` to assume this role via OIDC. No long-lived access keys are needed.
+That means there is no longer an `oidc-setup/` Terraform root in the repository
+and no local OIDC Terraform state to maintain here. OIDC trust changes are
+owned by the AWS/platform administrators who provision the role.
 
 ---
 
@@ -215,7 +194,7 @@ All 27 input variables grouped by concern:
 **Identity**
 - `app_name` — default `payjack-ai-companion`, validated against `^[a-z0-9-]+$`
 - `environment` — validated against `["dev", "test", "prod"]`
-- `aws_region` — default `us-east-1`
+- `aws_region` — default `eu-west-2`
 
 **Compute**
 - `ecr_repository_url` — required, no default
@@ -306,7 +285,7 @@ A committed, safe example file using placeholder account `123456789012` and demo
 
 ### `local.dev.tfvars`
 
-The actual local development config. Contains real values for the `509399591563` AWS account in `eu-west-1`:
+The actual local development config. Contains machine-specific values for the current AWS account in `eu-west-2`:
 - Real ECR URL
 - Real KB bucket names matching bootstrap outputs
 - `allow_force_destroy = true`
@@ -474,7 +453,7 @@ Not called from the root `main.tf`. Creates:
 ```text
 GitHub Actions (deploy-env.yml)
 │
-├── 1. Assumes OIDC role (oidc-setup/ — already applied)
+├── 1. Assumes externally provisioned GitHub Actions role
 │
 ├── 2. docker build + push → ECR (created by bootstrap)
 │
@@ -508,7 +487,6 @@ GitHub Actions (deploy-env.yml)
 | Stack | State key | Managed by |
 |---|---|---|
 | Bootstrap | `bootstrap/shared/terraform.tfstate` | `bootstrap-shared.yml` |
-| OIDC setup | Local file (no remote backend) | Admin, run manually |
 | Dev environment | `env/dev/terraform.tfstate` | `deploy-env.yml` |
 | Test environment | `env/test/terraform.tfstate` | `deploy-env.yml` |
 | Prod environment | `env/prod/terraform.tfstate` | `deploy-env.yml` |

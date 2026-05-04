@@ -35,7 +35,7 @@ jobs:
         shell: bash
     env:
       TARGET_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
-      AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+      AWS_REGION: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'eu-west-2' }}
       APP_NAME: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
       ECR_REPOSITORY_NAME: ${{ vars.ECR_REPOSITORY_NAME != '' && vars.ECR_REPOSITORY_NAME || 'payjack-ai-companion-backend' }}
       SHARED_KB_SOURCE_BUCKET: ${{ vars.SHARED_KB_SOURCE_BUCKET }}
@@ -43,7 +43,7 @@ jobs:
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
       TF_VAR_app_name: ${{ vars.APP_NAME != '' && vars.APP_NAME || 'payjack-ai-companion' }}
-      TF_VAR_aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'us-east-1' }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION != '' && vars.AWS_REGION || 'eu-west-2' }}
       TF_VAR_external_transactions_bucket_name: ${{ vars.EXTERNAL_TRANSACTIONS_BUCKET }}
       TF_VAR_external_transactions_prefix: ${{ vars.EXTERNAL_TRANSACTIONS_PREFIX }}
       TF_VAR_external_accounts_bucket_name: ${{ vars.EXTERNAL_ACCOUNTS_BUCKET }}
