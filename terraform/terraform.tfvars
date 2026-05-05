@@ -7,16 +7,16 @@
 app_name           = "payjack-ai-companion"
 environment        = "dev"
 aws_region         = "eu-west-2"
-ecr_repository_url = "123456789012.dkr.ecr.eu-west-2.amazonaws.com/payjack-ai-companion-backend"
+ecr_repository_url = "509399591563.dkr.ecr.eu-west-2.amazonaws.com/payjack-ai-companion-backend"
 image_tag          = "latest"
 
-shared_kb_source_bucket_name    = "payjack-ai-companion-123456789012-kb-source"
-shared_kb_artifacts_bucket_name = "payjack-ai-companion-123456789012-kb-artifacts"
+shared_kb_source_bucket_name    = "payjack-ai-companion-509399591563-kb-source"
+shared_kb_artifacts_bucket_name = "payjack-ai-companion-509399591563-kb-artifacts"
 
-external_transactions_bucket_name = "payjack-demo-transactions"
+external_transactions_bucket_name = "payjack-ai-demo-transactions-509399591563-eu-west-2-an"
 external_transactions_prefix      = ""
-external_accounts_bucket_name     = "payjack-demo-accounts"
-external_accounts_prefix          = ""
+# external_accounts_bucket_name     = "payjack-demo-accounts"
+# external_accounts_prefix          = ""
 
 use_mock_bedrock    = false
 use_local_rag       = false

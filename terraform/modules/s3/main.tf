@@ -7,37 +7,37 @@ locals {
 # External tool-pipeline buckets are read-only data sources. Terraform must
 # never create, empty, or destroy transaction/account/source-data buckets here.
 data "aws_s3_bucket" "external_transactions" {
-  count  = var.external_transactions_bucket_name == null ? 0 : 1
+  count  = var.external_transactions_bucket_name != null && var.external_transactions_bucket_name != "" ? 1 : 0
   bucket = var.external_transactions_bucket_name
 }
 
 data "aws_s3_bucket" "external_accounts" {
-  count  = var.external_accounts_bucket_name == null ? 0 : 1
+  count  = var.external_accounts_bucket_name != null && var.external_accounts_bucket_name != "" ? 1 : 0
   bucket = var.external_accounts_bucket_name
 }
 
 data "aws_s3_bucket" "external_fees" {
-  count  = var.external_fees_bucket_name == null ? 0 : 1
+  count  = var.external_fees_bucket_name != null && var.external_fees_bucket_name != "" ? 1 : 0
   bucket = var.external_fees_bucket_name
 }
 
 data "aws_s3_bucket" "external_products" {
-  count  = var.external_products_bucket_name == null ? 0 : 1
+  count  = var.external_products_bucket_name != null && var.external_products_bucket_name != "" ? 1 : 0
   bucket = var.external_products_bucket_name
 }
 
 data "aws_s3_bucket" "external_metadata" {
-  count  = var.external_metadata_bucket_name == null ? 0 : 1
+  count  = var.external_metadata_bucket_name != null && var.external_metadata_bucket_name != "" ? 1 : 0
   bucket = var.external_metadata_bucket_name
 }
 
 data "aws_s3_bucket" "shared_kb_source" {
-  count  = var.shared_kb_source_bucket_name == null ? 0 : 1
+  count  = var.shared_kb_source_bucket_name != null && var.shared_kb_source_bucket_name != "" ? 1 : 0
   bucket = var.shared_kb_source_bucket_name
 }
 
 data "aws_s3_bucket" "shared_kb_artifacts" {
-  count  = var.shared_kb_artifacts_bucket_name == null ? 0 : 1
+  count  = var.shared_kb_artifacts_bucket_name != null && var.shared_kb_artifacts_bucket_name != "" ? 1 : 0
   bucket = var.shared_kb_artifacts_bucket_name
 }
 
