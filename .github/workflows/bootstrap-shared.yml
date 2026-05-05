@@ -116,7 +116,6 @@ jobs:
         run: |
           terraform init \
             -migrate-state \
-            -reconfigure \
             -backend-config="bucket=${TF_STATE_BUCKET_NAME}" \
             -backend-config="key=bootstrap/shared/terraform.tfstate" \
             -backend-config="region=${AWS_REGION}" \
