@@ -9,7 +9,7 @@ type MessageListProps = {
 
 function AssistantAvatar({ hasAvatar }: { hasAvatar: boolean }) {
   return hasAvatar ? (
-    <img className="message-avatar" src="/avatar.png" alt="Payjack assistant avatar" />
+    <img className="message-avatar assistant-icon-image" src="/avatar.png" alt="Payjack assistant icon" />
   ) : (
     <div className="message-avatar assistant-avatar" aria-hidden="true">
       AI

@@ -5,13 +5,13 @@
   --surface-muted: #f7f5ef;
   --text: #1f1d19;
   --text-muted: #6f6658;
-  --accent: #0f5b52;
-  --accent-strong: #0d443e;
-  --accent-soft: #d8ebe7;
+  --accent: #8b5cf6;
+  --accent-strong: #7c3aed;
+  --accent-soft: #ede9fe;
   --border: #d7cfbf;
   --error: #9f2a1d;
-  --focus-ring: rgba(15, 91, 82, 0.24);
-  --assistant-avatar: #0f5b52;
+  --focus-ring: rgba(139, 92, 246, 0.24);
+  --assistant-avatar: #8b5cf6;
   --user-avatar: #6f6658;
   --shadow: 0 18px 60px rgba(39, 32, 22, 0.12);
 }
@@ -26,7 +26,7 @@ body {
   padding: 0;
   min-height: 100%;
   background:
-    radial-gradient(circle at top left, rgba(15, 91, 82, 0.12), transparent 38%),
+    radial-gradient(circle at top left, rgba(139, 92, 246, 0.14), transparent 38%),
     linear-gradient(180deg, #f8f5ee 0%, #f2eee5 100%);
   color: var(--text);
   font-family: Georgia, "Times New Roman", serif;
@@ -149,8 +149,6 @@ a {
   width: 36px;
   height: 36px;
   flex: 0 0 36px;
-  border-radius: 50%;
-  object-fit: cover;
   display: grid;
   place-items: center;
   border: 1px solid var(--border);
@@ -159,12 +157,21 @@ a {
   font-weight: 700;
 }
 
+.assistant-icon-image {
+  border-radius: 8px;
+  object-fit: contain;
+  padding: 4px;
+  background: var(--surface);
+}
+
 .assistant-avatar {
   background: var(--assistant-avatar);
+  border-radius: 50%;
 }
 
 .user-avatar {
   background: var(--user-avatar);
+  border-radius: 50%;
 }
 
 .response-answer p {
