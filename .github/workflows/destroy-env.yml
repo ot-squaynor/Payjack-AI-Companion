@@ -113,7 +113,27 @@ jobs:
 
       - name: Capture Terraform outputs before destroy
         working-directory: terraform
-        run: terraform output -json > tf-outputs.json || echo '{}' > tf-outputs.json
+        run: |
+          if terraform output -json > tf-outputs.raw; then
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          raw_path = Path("tf-outputs.raw")
+          json_path = Path("tf-outputs.json")
+          raw = raw_path.read_text(encoding="utf-8")
+          start = raw.find("{")
+          if start == -1:
+            json_path.write_text("{}", encoding="utf-8")
+            raise SystemExit(0)
+
+          payload, _ = json.JSONDecoder().raw_decode(raw[start:])
+          json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+          PY
+          else
+            echo '{}' > tf-outputs.json
+          fi
+          jq -e . tf-outputs.json >/dev/null
 
       - name: Guard external tool pipeline buckets
         run: |

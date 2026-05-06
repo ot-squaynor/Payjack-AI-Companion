@@ -183,7 +183,29 @@ jobs:
 
       - name: Capture Terraform outputs
         working-directory: terraform
-        run: terraform output -json > tf-outputs.json
+        run: |
+          terraform output -json > tf-outputs.raw
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          raw_path = Path("tf-outputs.raw")
+          json_path = Path("tf-outputs.json")
+          raw = raw_path.read_text(encoding="utf-8")
+          start = raw.find("{")
+          if start == -1:
+            print(raw)
+            raise SystemExit("terraform output did not contain a JSON object")
+
+          try:
+            payload, _ = json.JSONDecoder().raw_decode(raw[start:])
+          except json.JSONDecodeError as exc:
+            print(raw)
+            raise SystemExit(f"terraform output JSON could not be parsed: {exc}") from exc
+
+          json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+          PY
+          jq -e . tf-outputs.json >/dev/null
 
       - name: Build and publish processed datasets
         env:
