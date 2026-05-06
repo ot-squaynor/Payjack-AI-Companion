@@ -8,6 +8,11 @@ from app.repository.processed_store import ProcessedStore
 from app.security.access_control import resolve_account_scope
 from app.security.auth_context import AuthContext
 from app.tools.balances import balance_result_to_dict, lookup_balances, normalize_balance_request
+from app.tools.fee_breakdown import (
+    breakdown_fees,
+    fee_breakdown_result_to_dict,
+    normalize_fee_breakdown_request,
+)
 from app.tools.recurring_detection import (
     detect_recurring_payments,
     normalize_recurring_detection_request,
@@ -113,6 +118,16 @@ class ToolRegistry:
                 ),
             )
             payload = status_explanation_result_to_dict(result)
+            warnings = tuple(result.warnings)
+        elif invocation.name == "fee_breakdown":
+            result = breakdown_fees(
+                self.store.get_transactions(),
+                normalize_fee_breakdown_request(
+                    user_id=auth_context.user_id,
+                    **scoped_arguments,
+                ),
+            )
+            payload = fee_breakdown_result_to_dict(result)
             warnings = tuple(result.warnings)
         else:
             raise ValueError(f"Unsupported tool invocation: {invocation.name}")

@@ -17,12 +17,14 @@ from app.llm.prompts.tool_summarizer_prompt import build_tool_summarizer_prompt
 def build_generation_prompt(
     *,
     user_message: str, # e.g. "What is the revenue for Q1 2024?"
+    route: str,
     tool_results: list[dict[str, Any]], # e.g. [{"tool_name": "get_payjack_data", "output": "result of tool call"}, ...]
     citations: list[dict[str, Any]], # e.g. [{"source": "file.txt", "text": "relevant excerpt from file.txt"}, ...]
     grounding_mode: str, # e.g. "retrieval", "tool_calls", "none"
 ) -> str:
     return build_tool_summarizer_prompt(
         user_message=user_message, # e.g. "What is the revenue for Q1 2024?"
+        route=route,
         tool_results=tool_results, # e.g. [{"tool_name": "get_payjack_data", "output": "result of tool call"}, ...]
         citations=citations, # e.g. [{"source": "file.txt", "text": "relevant excerpt from file.txt"}, ...]
         grounding_mode=grounding_mode, # e.g. "retrieval", "tool_calls", "none"

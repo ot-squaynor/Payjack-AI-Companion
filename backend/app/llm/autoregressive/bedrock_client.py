@@ -119,7 +119,51 @@ class MockBedrockClient:
                     )
                 return "\n".join(lines)
 
-        if request.grounding_mode == "rag" and request.citations:
+            if tool_name == "balances":
+                records = payload.get("records", [])
+                if not records:
+                    return "I could not find any balances for the selected account scope."
+                lines = ["Here are the available account balances:"]
+                for record in records[:5]:
+                    lines.append(
+                        "- {name}: {available} {currency} available".format(
+                            name=record.get("account_name") or record.get("account_id", "Account"),
+                            available=record.get("available_balance", record.get("current_balance", "unknown")),
+                            currency=record.get("currency", ""),
+                        )
+                    )
+                return "\n".join(lines)
+
+            if tool_name == "status_explanation":
+                counts = payload.get("counts_by_status", {})
+                if not counts:
+                    return "I could not find transaction status information for that scope."
+                lines = ["Here is the transaction status breakdown:"]
+                for status, count in counts.items():
+                    lines.append(f"- {status}: {count}")
+                return "\n".join(lines)
+
+            if tool_name == "fee_breakdown":
+                records = payload.get("records", [])
+                total = payload.get("total_amount", "0.00")
+                if not records:
+                    return "I could not find fee-like transactions that match those filters."
+                lines = [f"I found {len(records)} fee-like transaction(s), totaling {total} across the selected filters:"]
+                for record in records[:5]:
+                    lines.append(
+                        "- {timestamp}: {merchant} {amount} {currency} ({reason})".format(
+                            timestamp=str(record.get("timestamp", ""))[:10],
+                            merchant=record.get("merchant", "Unknown merchant"),
+                            amount=record.get("amount", "0.00"),
+                            currency=record.get("currency", ""),
+                            reason=record.get("matched_reason", "fee match"),
+                        )
+                    )
+                if request.citations:
+                    lines.append("I can also use the accepted Payjack documentation to explain the policy context.")
+                return "\n".join(lines)
+
+        if request.grounding_mode in {"rag", "hybrid"} and request.citations:
             lines = ["Based on the accepted Payjack documentation, here are the most relevant details:"]
             for citation in request.citations[:2]:
                 lines.append(
@@ -131,7 +175,12 @@ class MockBedrockClient:
             return "\n".join(lines)
 
         if request.grounding_mode == "base":
-            if request.route == "rag":
+            if request.route == "safe_general_route":
+                return (
+                    "Here is a general explanation: this request does not need private Payjack data, so I can answer from general knowledge. "
+                    "For Payjack-specific rules or current account details, I would need grounded documentation or read-only account context."
+                )
+            if request.route in {"rag", "rag_route"}:
                 return (
                     "I could not verify that in reliable Payjack documentation, so I do not want to invent fees, "
                     "limits, policies, or app steps. Please check the relevant Payjack docs or try a more specific question."

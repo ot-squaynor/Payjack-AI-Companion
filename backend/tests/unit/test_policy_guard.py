@@ -12,7 +12,19 @@ def test_policy_guard_blocks_transaction_execution_request() -> None:
     decision = evaluate_input_policy("Please send money to my landlord today.")
 
     assert decision.allowed is False
-    assert decision.category == "transaction_execution"
+    assert decision.category == "money_movement_or_account_execution"
+
+
+def test_policy_guard_allows_informational_transfer_request() -> None:
+    decision = evaluate_input_policy("How do I transfer money in the PayJack app?")
+
+    assert decision.allowed is True
+
+
+def test_policy_guard_allows_general_investment_education() -> None:
+    decision = evaluate_input_policy("Explain the risks of mutual funds.")
+
+    assert decision.allowed is True
 
 
 def test_output_policy_uses_the_same_safety_rules() -> None:

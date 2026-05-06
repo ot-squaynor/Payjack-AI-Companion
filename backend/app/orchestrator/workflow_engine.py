@@ -21,11 +21,12 @@ from app.orchestrator.intent_router import route_message
 from app.rag.retriever import RetrieverResult
 from app.repository.processed_store import ProcessedStoreError
 from app.orchestrator.response_formatter import format_chat_response
+from app.orchestrator.response_planner import plan_static_response
 from app.security.audit_logging import log_audit_event
 from app.security.auth_context import AuthContext
 from app.security.parameter_validator import validate_chat_request
 from app.security.pii_redaction import redact_value
-from app.security.policy_guard import evaluate_input_policy, evaluate_output_policy
+from app.security.policy_guard import evaluate_output_policy
 from app.telemetry.metrics import measure_duration
 from app.tools.registry import ToolInvocation, ToolRegistry
 
@@ -35,6 +36,8 @@ def _resolve_grounding_mode(
     tool_traces: list[dict[str, object]],
     retrieval_result: RetrieverResult,
 ) -> str:
+    if tool_traces and retrieval_result.usable_context and retrieval_result.citations:
+        return "hybrid"
     if retrieval_result.usable_context and retrieval_result.citations:
         return "rag"
     if tool_traces:
@@ -72,50 +75,72 @@ class WorkflowEngine:
             max_message_chars=self.settings.max_message_chars,
         )
 
-        policy_decision = evaluate_input_policy(request.message)
-        if not policy_decision.allowed:
-            refusal_payload = {
-                "category": policy_decision.category or "policy_violation",
-                "message": policy_decision.message or "I cannot help with that request.",
-            }
-            log_audit_event(
-                event_type="refusal",
-                request_id=request_id,
-                auth_context=auth_context,
-                payload=refusal_payload,
-            )
-            return format_chat_response(
-                request_id=request_id,
-                session_id=session_id,
-                route="refuse",
-                answer=refusal_payload["message"],
-                tool_traces=[],
-                citations=[],
-                refusal=refusal_payload,
-                debug={},
-            )
-
         route_decision = route_message(request.message)
         tool_traces: list[dict[str, object]] = []
         citations: list[dict[str, object]] = []
         retrieval_result = RetrieverResult.empty(reason="retrieval_not_requested")
-        retrieval_requested = route_decision.route in {"rag", "hybrid"}
+        retrieval_requested = route_decision.requires_policy_docs
 
-        if route_decision.route in {"tool", "hybrid"} and route_decision.tool_name:
+        static_plan = plan_static_response(route_decision)
+        if static_plan is not None:
+            total_duration = measure_duration("chat_request", started_at)
+            debug = {}
+            if self.settings.enable_debug_traces:
+                debug = {
+                    "route_decision": route_decision.to_debug_dict(),
+                    "duration_ms": total_duration.milliseconds,
+                }
+            log_audit_event(
+                event_type="refusal" if route_decision.route == "refusal_route" else "chat_response",
+                request_id=request_id,
+                auth_context=auth_context,
+                payload={
+                    "route": route_decision.route,
+                    "intent": route_decision.intent,
+                    "confidence": route_decision.confidence,
+                    "allowed": route_decision.allowed,
+                    "refusal_reason": route_decision.prohibited_reason,
+                    "duration_ms": total_duration.milliseconds,
+                    "tool_count": 0,
+                    "citation_count": 0,
+                },
+            )
+            return format_chat_response(
+                request_id=request_id,
+                session_id=session_id,
+                route=route_decision.route,
+                answer=static_plan.answer,
+                tool_traces=[],
+                citations=[],
+                refusal=static_plan.refusal,
+                debug=debug,
+            )
+
+        if route_decision.tool_invocations:
             try:
-                tool_result = self.tool_registry.invoke(
-                    ToolInvocation(
-                        name=route_decision.tool_name,
-                        arguments=route_decision.tool_arguments,
-                    ),
-                    auth_context=auth_context,
-                )
+                for tool_plan in route_decision.tool_invocations:
+                    tool_result = self.tool_registry.invoke(
+                        ToolInvocation(
+                            name=tool_plan.name,
+                            arguments=dict(tool_plan.arguments),
+                        ),
+                        auth_context=auth_context,
+                    )
+                    tool_traces.append(
+                        {
+                            "name": tool_result.name,
+                            "arguments": redact_value(tool_result.arguments),
+                            "result": redact_value(tool_result.payload),
+                            "warnings": list(tool_result.warnings),
+                            "artifact_version": tool_result.artifact_version,
+                        }
+                    )
             except ProcessedStoreError as exc:
                 total_duration = measure_duration("chat_request", started_at)
                 debug = {}
                 if self.settings.enable_debug_traces:
                     debug = {
-                        "reason": route_decision.reason,
+                        "route_decision": route_decision.to_debug_dict(),
                         "grounding_mode": "tool",
                         "tool_unavailable_reason": str(exc),
                         "duration_ms": total_duration.milliseconds,
@@ -130,17 +155,7 @@ class WorkflowEngine:
                     debug=debug,
                 )
 
-            tool_traces.append(
-                {
-                    "name": tool_result.name,
-                    "arguments": redact_value(tool_result.arguments),
-                    "result": redact_value(tool_result.payload),
-                    "warnings": list(tool_result.warnings),
-                    "artifact_version": tool_result.artifact_version,
-                }
-            )
-
-        if route_decision.route in {"rag", "hybrid"}:
+        if retrieval_requested:
             if self.retriever is None:
                 retrieval_result = RetrieverResult.empty(reason="retriever_unavailable")
             else:
@@ -148,27 +163,13 @@ class WorkflowEngine:
             if retrieval_result.usable_context:
                 citations = [citation for citation in retrieval_result]
 
-        if route_decision.route == "clarify":
-            answer = (
-                "I can help with transaction lookups, spend summaries, recurring payments, "
-                "balances, and Payjack documentation. Please ask a more specific question."
-            )
-            return format_chat_response(
-                request_id=request_id,
-                session_id=session_id,
-                route=route_decision.route,
-                answer=answer,
-                tool_traces=tool_traces,
-                citations=citations,
-                debug={"reason": route_decision.reason},
-            )
-
         grounding_mode = _resolve_grounding_mode(
             tool_traces=tool_traces,
             retrieval_result=retrieval_result,
         )
         prompt = build_generation_prompt(
             user_message=request.message,
+            route=route_decision.route,
             tool_results=tool_traces,
             citations=citations,
             grounding_mode=grounding_mode,
@@ -195,7 +196,7 @@ class WorkflowEngine:
         debug = {}
         if self.settings.enable_debug_traces:
             debug = {
-                "reason": route_decision.reason,
+                "route_decision": route_decision.to_debug_dict(),
                 "grounding_mode": grounding_mode,
                 "model_id": generation.model_id,
                 "llm_request_id": generation.request_id,
@@ -219,7 +220,11 @@ class WorkflowEngine:
             auth_context=auth_context,
             payload={
                 "route": route_decision.route,
-                "reason": route_decision.reason,
+                "intent": route_decision.intent,
+                "confidence": route_decision.confidence,
+                "allowed": route_decision.allowed,
+                "refusal_reason": route_decision.prohibited_reason,
+                "duration_ms": total_duration.milliseconds,
                 "tool_count": len(tool_traces),
                 "citation_count": len(citations),
             },

@@ -84,6 +84,21 @@ def sample_transactions_df() -> pd.DataFrame:
                 "recurrence_cadence": "monthly",
                 "recurrence_confidence": "medium",
             },
+            {
+                "transaction_id": "txn-004",
+                "account_id": "acc-001",
+                "timestamp": "2026-03-10T08:30:00Z",
+                "amount": 2.50,
+                "currency": "GHS",
+                "direction": "debit",
+                "merchant": "PayJack Service Fee",
+                "category": "fees",
+                "subcategory": "transfer_fee",
+                "status": "posted",
+                "is_recurring": False,
+                "recurrence_cadence": "irregular",
+                "recurrence_confidence": "low",
+            },
         ]
     )
 
@@ -175,17 +190,38 @@ def processed_test_assets(
     kb_root = runtime_root / "kb"
     kb_root.mkdir(parents=True, exist_ok=True)
     kb_chunks_path = kb_root / "chunks.jsonl"
+    kb_chunks = [
+        {
+            "doc_id": "fees_policy",
+            "chunk_id": 0,
+            "title": "Fees Policy",
+            "text": "Payjack fee explanations are available in the help center.",
+            "metadata": {"type": "policy", "source_path": "policies/fees.md"},
+        },
+        {
+            "doc_id": "jackinvest_overview",
+            "chunk_id": 0,
+            "title": "JackInvest Overview",
+            "text": "JackInvest is a Payjack product area for investment education, product information, fees, and risk explanations.",
+            "metadata": {"type": "product", "source_path": "products/jackinvest.md"},
+        },
+        {
+            "doc_id": "payjack_limits",
+            "chunk_id": 0,
+            "title": "Payjack Transfer Limits",
+            "text": "Payjack transfer limits and app usage guidance are documented in the help center.",
+            "metadata": {"type": "policy", "source_path": "policies/limits.md"},
+        },
+        {
+            "doc_id": "onboarding_help",
+            "chunk_id": 0,
+            "title": "Onboarding Help",
+            "text": "Payjack onboarding guides explain verification, KYC, app setup, and common onboarding errors.",
+            "metadata": {"type": "help", "source_path": "help/onboarding.md"},
+        },
+    ]
     kb_chunks_path.write_text(
-        json.dumps(
-            {
-                "doc_id": "fees_policy",
-                "chunk_id": 0,
-                "title": "Fees Policy",
-                "text": "Payjack fee explanations are available in the help center.",
-                "metadata": {"type": "policy", "source_path": "policies/fees.md"},
-            }
-        )
-        + "\n",
+        "\n".join(json.dumps(chunk, ensure_ascii=False) for chunk in kb_chunks) + "\n",
         encoding="utf-8",
     )
 

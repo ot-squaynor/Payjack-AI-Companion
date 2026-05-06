@@ -12,7 +12,7 @@ def test_chat_route_returns_tool_backed_response(test_client, auth_headers) -> N
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["route"] == "tool"
+    assert payload["route"] == "deterministic_tool_route"
     assert payload["tool_traces"][0]["name"] == "transaction_lookup"
     assert "Fresh Market" in payload["answer"]
     assert "Utility Co" not in payload["answer"]
@@ -33,7 +33,7 @@ def test_api_prefixed_routes_mirror_direct_routes(test_client, auth_headers) -> 
     assert ready_response.json()["status"] == "ready"
     assert chat_response.status_code == 200
     payload = chat_response.json()
-    assert payload["route"] == "tool"
+    assert payload["route"] == "deterministic_tool_route"
     assert payload["tool_traces"][0]["name"] == "transaction_lookup"
 
 
@@ -52,7 +52,7 @@ def test_chat_route_returns_grounded_doc_response(test_client, auth_headers) -> 
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["route"] == "rag"
+    assert payload["route"] == "rag_route"
     assert payload["debug"]["grounding_mode"] == "rag"
     assert payload["citations"]
     assert payload["citations"][0]["title"] == "Fees Policy"
@@ -67,7 +67,7 @@ def test_chat_route_falls_back_when_docs_are_not_reliable(test_client, auth_head
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["route"] == "rag"
+    assert payload["route"] == "rag_route"
     assert payload["debug"]["grounding_mode"] == "base"
     assert payload["citations"] == []
     assert payload["debug"]["accepted_citation_count"] == 0
@@ -83,8 +83,36 @@ def test_chat_route_refuses_disallowed_requests(test_client, auth_headers) -> No
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["route"] == "refuse"
-    assert payload["refusal"]["category"] == "transaction_execution"
+    assert payload["route"] == "refusal_route"
+    assert payload["refusal"]["category"] == "money_movement_or_account_execution"
+
+
+def test_chat_route_allows_safe_general_questions(test_client, auth_headers) -> None:
+    response = test_client.post(
+        "/chat",
+        headers=auth_headers,
+        json={"message": "Explain compound interest simply.", "session_id": "session-general-1"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["route"] == "safe_general_route"
+    assert payload["refusal"] is None
+    assert payload["debug"]["grounding_mode"] == "base"
+
+
+def test_chat_route_handles_hybrid_fee_question(test_client, auth_headers) -> None:
+    response = test_client.post(
+        "/chat",
+        headers=auth_headers,
+        json={"message": "Why was I charged this fee?", "session_id": "session-hybrid-1"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["route"] == "hybrid_route"
+    assert payload["tool_traces"][0]["name"] == "fee_breakdown"
+    assert payload["refusal"] is None
 
 
 def test_chat_route_handles_unavailable_tool_data_gracefully(
@@ -111,7 +139,7 @@ def test_chat_route_handles_unavailable_tool_data_gracefully(
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["route"] == "tool"
+    assert payload["route"] == "deterministic_tool_route"
     assert payload["tool_traces"] == []
     assert payload["debug"]["grounding_mode"] == "tool"
     assert "processed artifacts" in payload["answer"].lower()

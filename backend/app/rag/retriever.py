@@ -78,7 +78,10 @@ class KnowledgeRetriever:
                 retrieved_count=len(ranked_chunks),
                 top_score=top_score,
             )
-        if top_match_count < MIN_ACCEPTED_MATCHED_TERMS:
+        if not _has_sufficient_overlap(
+            matched_term_count=top_match_count,
+            title_match_count=top_title_match_count,
+        ):
             return RetrieverResult.empty(
                 reason="insufficient_term_overlap",
                 retrieved_count=len(ranked_chunks),
@@ -102,7 +105,10 @@ class KnowledgeRetriever:
             snippet = str(chunk.get("text", "")).strip()
             if not snippet:
                 continue
-            if int(chunk.get("matched_term_count", 0)) < MIN_ACCEPTED_MATCHED_TERMS:
+            if not _has_sufficient_overlap(
+                matched_term_count=int(chunk.get("matched_term_count", 0)),
+                title_match_count=int(chunk.get("title_match_count", 0)),
+            ):
                 continue
             if int(chunk.get("title_match_count", 0)) < MIN_ACCEPTED_TITLE_MATCHES:
                 continue
@@ -135,6 +141,12 @@ class KnowledgeRetriever:
             accepted_count=len(citations),
             top_score=top_score,
         )
+
+
+def _has_sufficient_overlap(*, matched_term_count: int, title_match_count: int) -> bool:
+    if matched_term_count >= MIN_ACCEPTED_MATCHED_TERMS:
+        return True
+    return matched_term_count >= 1 and title_match_count >= MIN_ACCEPTED_TITLE_MATCHES
 
 
 def _load_local_chunks(path: Path) -> list[dict[str, Any]]:
