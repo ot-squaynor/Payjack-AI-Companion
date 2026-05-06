@@ -222,6 +222,7 @@ jobs:
             --output-prefix "${TARGET_ENVIRONMENT}"
             --transactions-bucket "${TF_VAR_external_transactions_bucket_name}"
             --transactions-prefix "${TF_VAR_external_transactions_prefix}"
+            --drop-invalid-rows
           )
 
           if [[ -n "${TF_VAR_external_accounts_bucket_name}" ]]; then
