@@ -149,7 +149,7 @@ variable "enable_debug_traces" {
 
 variable "bedrock_model_id" {
   type    = string
-  default = "anthropic.claude-3-5-haiku-20241022-v1:0"
+  default = "amazon.nova-micro-v1:0"
 }
 
 variable "bedrock_embedding_model_id" {

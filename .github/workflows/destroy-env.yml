@@ -54,7 +54,7 @@ jobs:
       TF_VAR_use_mock_bedrock: ${{ vars.USE_MOCK_BEDROCK != '' && vars.USE_MOCK_BEDROCK || 'false' }}
       TF_VAR_use_local_rag: ${{ vars.USE_LOCAL_RAG != '' && vars.USE_LOCAL_RAG || 'false' }}
       TF_VAR_enable_debug_traces: ${{ vars.ENABLE_DEBUG_TRACES != '' && vars.ENABLE_DEBUG_TRACES || (inputs.environment != 'prod' && 'true' || 'false') }}
-      TF_VAR_bedrock_model_id: ${{ vars.BEDROCK_MODEL_ID != '' && vars.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-haiku-20241022-v1:0' }}
+      TF_VAR_bedrock_model_id: ${{ vars.BEDROCK_MODEL_ID != '' && vars.BEDROCK_MODEL_ID || 'amazon.nova-micro-v1:0' }}
       TF_VAR_bedrock_embedding_model_id: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID != '' && vars.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0' }}
       TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS != '' && vars.CORS_ORIGINS || 'http://localhost:3000' }}
       TF_VAR_allow_force_destroy: ${{ inputs.environment != 'prod' && 'true' || 'false' }}
