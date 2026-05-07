@@ -169,6 +169,44 @@ jobs:
       - name: Empty managed and KB buckets for non-prod destroy
         if: ${{ inputs.environment != 'prod' }}
         run: |
+          empty_s3_prefix_versions() {
+            local bucket="$1"
+            local prefix="$2"
+            local label="$3"
+
+            if [[ -z "${bucket}" ]]; then
+              return
+            fi
+
+            echo "Emptying ${label}: s3://${bucket}/${prefix}"
+            aws s3 rm "s3://${bucket}/${prefix}" --recursive
+
+            while true; do
+              versions_json="$(aws s3api list-object-versions \
+                --bucket "${bucket}" \
+                --prefix "${prefix}" \
+                --max-items 1000 \
+                --output json)"
+
+              delete_payload="$(echo "${versions_json}" | jq -c '
+                {
+                  Objects: (((.Versions // []) + (.DeleteMarkers // [])) | map({Key: .Key, VersionId: .VersionId})),
+                  Quiet: true
+                }
+              ')"
+              delete_count="$(echo "${delete_payload}" | jq '.Objects | length')"
+
+              if [[ "${delete_count}" -eq 0 ]]; then
+                break
+              fi
+
+              echo "Deleting ${delete_count} versioned object(s) from ${label}."
+              aws s3api delete-objects \
+                --bucket "${bucket}" \
+                --delete "${delete_payload}" >/dev/null
+            done
+          }
+
           managed_buckets=(
             "$(jq -r '.processed_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)"
             "$(jq -r '.frontend_bucket_name.value // empty' terraform/tf-outputs.json)"
@@ -185,13 +223,11 @@ jobs:
           kb_artifacts_bucket="$(jq -r '.kb_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)"
 
           if [[ -n "${kb_source_bucket}" ]]; then
-            echo "Emptying KB source raw docs prefix: s3://${kb_source_bucket}/raw_docs/"
-            aws s3 rm "s3://${kb_source_bucket}/raw_docs/" --recursive || true
+            empty_s3_prefix_versions "${kb_source_bucket}" "raw_docs/" "KB source raw docs prefix"
           fi
 
           if [[ -n "${kb_artifacts_bucket}" ]]; then
-            echo "Emptying KB artifacts environment prefix: s3://${kb_artifacts_bucket}/${TARGET_ENVIRONMENT}/"
-            aws s3 rm "s3://${kb_artifacts_bucket}/${TARGET_ENVIRONMENT}/" --recursive || true
+            empty_s3_prefix_versions "${kb_artifacts_bucket}" "${TARGET_ENVIRONMENT}/" "KB artifacts environment prefix"
           fi
 
       - name: Terraform destroy
