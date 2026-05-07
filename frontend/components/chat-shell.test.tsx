@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatShell } from "@/components/chat-shell";
 
@@ -21,6 +21,10 @@ describe("ChatShell", () => {
   beforeEach(() => {
     getHealthMock.mockReset();
     sendChatMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("shows backend unavailable when the health check fails", async () => {
@@ -86,5 +90,20 @@ describe("ChatShell", () => {
     await waitFor(() => {
       expect(screen.getByText("Chat request failed: Chat backend timed out")).toBeInTheDocument();
     });
+  });
+
+  it("does not probe or render the removed avatar asset", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    getHealthMock.mockResolvedValue({ status: "ok", environment: "local" });
+
+    render(<ChatShell />);
+
+    await waitFor(() => {
+      expect(screen.getByText("ok")).toBeInTheDocument();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByAltText("Payjack assistant icon")).not.toBeInTheDocument();
   });
 });

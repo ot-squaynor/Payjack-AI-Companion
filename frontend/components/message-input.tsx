@@ -30,19 +30,24 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
 
   return (
     <div className="message-input">
-      <textarea
-        ref={ref}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Ask about your transactions, spending, or Payjack features..."
-        rows={3}
-        disabled={disabled}
-        autoFocus
-      />
-      <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
-        Send
-      </button>
+      <div className="composer-panel">
+        <textarea
+          ref={ref}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Ask about your transactions, spending, or Payjack features..."
+          rows={3}
+          disabled={disabled}
+          autoFocus
+        />
+        <div className="composer-actions">
+          <span className="composer-context">Secure read-only companion</span>
+          <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
+            Send
+          </button>
+        </div>
+      </div>
     </div>
   );
 });

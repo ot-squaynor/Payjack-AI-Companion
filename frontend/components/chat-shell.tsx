@@ -17,7 +17,6 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [hasAvatar, setHasAvatar] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([
     {
@@ -37,31 +36,6 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
       .catch((error: Error) => {
         setHealthError(error.message);
       });
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (typeof window === "undefined" || typeof window.fetch !== "function") {
-      return;
-    }
-
-    window
-      .fetch("/avatar.png", { method: "HEAD" })
-      .then((response) => {
-        if (!cancelled) {
-          setHasAvatar(response.ok);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setHasAvatar(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   useEffect(() => {
@@ -116,13 +90,14 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
   };
 
   return (
-    <section className="chat-shell">
+    <section className="chat-shell" aria-label="Payjack AI chat workspace">
       <div className="chat-header">
-        <div>
+        <div className="chat-title">
+          <p className="eyebrow">Payjack AI</p>
           <h1>Payjack AI Financial Companion</h1>
           <p>Read-only transaction interpretation and grounded product guidance.</p>
         </div>
-        <div className="health-panel">
+        <div className="health-panel" aria-live="polite">
           <span className={healthError ? "status-badge error" : "status-badge ok"}>
             {healthError ? "Backend unavailable" : health?.status || "Checking"}
           </span>
@@ -130,7 +105,7 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         </div>
       </div>
 
-      <MessageList messages={messages} showDebug={showDebug} hasAvatar={hasAvatar} />
+      <MessageList messages={messages} showDebug={showDebug} />
       <MessageInput
         ref={inputRef}
         value={input}
