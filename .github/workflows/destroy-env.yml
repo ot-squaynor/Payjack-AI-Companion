@@ -140,6 +140,8 @@ jobs:
           managed_buckets=(
             "$(jq -r '.processed_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)"
             "$(jq -r '.frontend_bucket_name.value // empty' terraform/tf-outputs.json)"
+            "$(jq -r '.kb_source_bucket_name.value // empty' terraform/tf-outputs.json)"
+            "$(jq -r '.kb_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)"
           )
 
           external_buckets=(
@@ -164,7 +166,7 @@ jobs:
 
           echo "External tool pipeline buckets are not targeted by this destroy workflow."
 
-      - name: Empty managed buckets for non-prod destroy
+      - name: Empty managed and KB buckets for non-prod destroy
         if: ${{ inputs.environment != 'prod' }}
         run: |
           managed_buckets=(
@@ -178,6 +180,19 @@ jobs:
               aws s3 rm "s3://${bucket}" --recursive || true
             fi
           done
+
+          kb_source_bucket="$(jq -r '.kb_source_bucket_name.value // empty' terraform/tf-outputs.json)"
+          kb_artifacts_bucket="$(jq -r '.kb_artifacts_bucket_name.value // empty' terraform/tf-outputs.json)"
+
+          if [[ -n "${kb_source_bucket}" ]]; then
+            echo "Emptying KB source raw docs prefix: s3://${kb_source_bucket}/raw_docs/"
+            aws s3 rm "s3://${kb_source_bucket}/raw_docs/" --recursive || true
+          fi
+
+          if [[ -n "${kb_artifacts_bucket}" ]]; then
+            echo "Emptying KB artifacts environment prefix: s3://${kb_artifacts_bucket}/${TARGET_ENVIRONMENT}/"
+            aws s3 rm "s3://${kb_artifacts_bucket}/${TARGET_ENVIRONMENT}/" --recursive || true
+          fi
 
       - name: Terraform destroy
         working-directory: terraform
