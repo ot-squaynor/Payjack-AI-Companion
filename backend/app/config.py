@@ -107,7 +107,10 @@ class Settings:
             app_env=os.getenv("APP_ENV", "local"),
             debug=_get_bool("DEBUG", True),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
-            cors_origins=_get_tuple("CORS_ORIGINS", ("http://localhost:3000",)),
+            cors_origins=_get_tuple(
+                "CORS_ORIGINS",
+                ("http://localhost:3000", "http://127.0.0.1:3000"),
+            ),
             max_message_chars=_get_int("MAX_MESSAGE_CHARS", 2000),
             processed_store_mode=os.getenv("PROCESSED_STORE_MODE", "local").strip().lower(),
             processed_local_root=processed_local_root,

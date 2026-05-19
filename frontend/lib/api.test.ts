@@ -15,6 +15,7 @@ describe("frontend API client", () => {
     delete process.env.NEXT_PUBLIC_DEFAULT_USER_ID;
     delete process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID;
     delete process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_IDS;
+    vi.unstubAllEnvs();
   });
 
   it("returns backend health when the request succeeds", async () => {
@@ -54,6 +55,29 @@ describe("frontend API client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/health",
+      expect.objectContaining({
+        method: "GET",
+        cache: "no-store"
+      })
+    );
+  });
+
+  it("defaults to the local FastAPI server during frontend development", async () => {
+    delete process.env.NEXT_PUBLIC_API_BASE_URL;
+    vi.stubEnv("NODE_ENV", "development");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok", environment: "local" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { getHealth } = await import("@/lib/api");
+    await getHealth();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/health",
       expect.objectContaining({
         method: "GET",
         cache: "no-store"
@@ -104,6 +128,24 @@ describe("frontend API client", () => {
     const { sendChat } = await import("@/lib/api");
 
     await expect(sendChat({ message: "Show my last 2 transactions" })).rejects.toThrow("Backend failure");
+  });
+
+  it("raises a useful error when chat returns frontend HTML", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<!DOCTYPE html><html><body>Not the API</body></html>", {
+          status: 200,
+          headers: { "Content-Type": "text/html" }
+        })
+      )
+    );
+
+    const { sendChat } = await import("@/lib/api");
+
+    await expect(sendChat({ message: "Show my last 2 transactions" })).rejects.toThrow(
+      "The request likely reached the frontend HTML app or an HTML error page instead of FastAPI."
+    );
   });
 
   it("raises the original network error when fetch fails", async () => {

@@ -46,6 +46,35 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_function" "frontend_rewrite" {
+  name    = "${local.name}-frontend-rewrite"
+  runtime = "cloudfront-js-1.0"
+  comment = "Rewrite extensionless frontend routes to static export HTML files"
+  publish = true
+  code    = <<-EOT
+function handler(event) {
+    var request = event.request;
+    var uri = request.uri;
+
+    if (uri === "/" || uri === "") {
+        request.uri = "/index.html";
+        return request;
+    }
+
+    if (uri.charAt(uri.length - 1) === "/") {
+        request.uri = uri.slice(0, -1) + ".html";
+        return request;
+    }
+
+    if (uri.indexOf(".") === -1) {
+        request.uri = uri + ".html";
+    }
+
+    return request;
+}
+EOT
+}
+
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -79,6 +108,11 @@ resource "aws_cloudfront_distribution" "frontend" {
     cached_methods         = ["GET", "HEAD"]
     compress               = true
     cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.frontend_rewrite.arn
+    }
   }
 
   ordered_cache_behavior {
@@ -90,18 +124,6 @@ resource "aws_cloudfront_distribution" "frontend" {
     compress                 = true
     cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
     origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
-  }
-
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
   }
 
   restrictions {

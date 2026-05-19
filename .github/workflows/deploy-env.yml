@@ -61,7 +61,7 @@ jobs:
       TF_VAR_enable_debug_traces: ${{ vars.ENABLE_DEBUG_TRACES != '' && vars.ENABLE_DEBUG_TRACES || (inputs.environment != 'prod' && 'true' || 'false') }}
       TF_VAR_bedrock_model_id: ${{ vars.BEDROCK_MODEL_ID != '' && vars.BEDROCK_MODEL_ID || 'amazon.nova-micro-v1:0' }}
       TF_VAR_bedrock_embedding_model_id: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID != '' && vars.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0' }}
-      TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS != '' && vars.CORS_ORIGINS || 'http://localhost:3000' }}
+      TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS != '' && vars.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000' }}
       TF_VAR_allow_force_destroy: ${{ inputs.environment != 'prod' && 'true' || 'false' }}
 
     steps:
@@ -273,35 +273,44 @@ jobs:
           CLOUDFRONT_URL="$(jq -r '.cloudfront_url.value' terraform/tf-outputs.json | sed 's:/*$::')"
           test -n "${CLOUDFRONT_URL}" || { echo "cloudfront_url output is empty."; exit 1; }
 
-          curl --fail --retry 5 --retry-delay 10 "${CLOUDFRONT_URL}/api/health"
-          curl --fail --retry 5 --retry-delay 10 "${CLOUDFRONT_URL}/api/ready"
+          health_response="$(curl --fail-with-body --retry 5 --retry-delay 10 -sS \
+            -H "Accept: application/json" \
+            "${CLOUDFRONT_URL}/api/health")"
+          echo "${health_response}" | jq -e '.status == "ok"' >/dev/null
 
-          chat_response="$(curl --retry 3 --retry-delay 10 -sS \
+          ready_response="$(curl --fail-with-body --retry 5 --retry-delay 10 -sS \
+            -H "Accept: application/json" \
+            "${CLOUDFRONT_URL}/api/ready")"
+          echo "${ready_response}" | jq -e '.status == "ready"' >/dev/null
+
+          api_404_status="$(curl --retry 3 --retry-delay 5 -sS \
+            -o /tmp/payjack-api-404.json \
+            -w "%{http_code}" \
+            -H "Accept: application/json" \
+            "${CLOUDFRONT_URL}/api/__missing_smoke_route")"
+          test "${api_404_status}" = "404"
+          jq -e '.detail == "Not Found"' /tmp/payjack-api-404.json >/dev/null
+
+          chat_response="$(curl --fail-with-body --retry 3 --retry-delay 10 -sS \
             -X POST "${CLOUDFRONT_URL}/api/chat" \
+            -H "Accept: application/json" \
             -H "Content-Type: application/json" \
             -H "x-payjack-user-id: smoke-user" \
             -H "x-payjack-tenant-id: smoke-tenant" \
             -H "x-payjack-roles: customer" \
             -H "x-payjack-account-ids: acc-001" \
-            --data '{"message":"Show my last 2 transactions","session_id":"smoke-readonly"}' || true)"
-          if echo "${chat_response}" | jq -e '.answer and .route' >/dev/null 2>&1; then
-            echo "Chat smoke test passed."
-          else
-            echo "Chat smoke test did not return the expected response; continuing because health and readiness passed."
-            echo "${chat_response}"
-          fi
+            --data '{"message":"Show my last 2 transactions","session_id":"smoke-readonly"}')"
+          echo "${chat_response}" | jq -e '.answer and .route' >/dev/null
+          echo "Chat smoke test passed."
 
-          refusal_response="$(curl --retry 3 --retry-delay 10 -sS \
+          refusal_response="$(curl --fail-with-body --retry 3 --retry-delay 10 -sS \
             -X POST "${CLOUDFRONT_URL}/api/chat" \
+            -H "Accept: application/json" \
             -H "Content-Type: application/json" \
             -H "x-payjack-user-id: smoke-user" \
             -H "x-payjack-tenant-id: smoke-tenant" \
             -H "x-payjack-roles: customer" \
             -H "x-payjack-account-ids: acc-001" \
-            --data '{"message":"Send money to another account","session_id":"smoke-refusal"}' || true)"
-          if echo "${refusal_response}" | jq -e '.route == "refuse"' >/dev/null 2>&1; then
-            echo "Refusal smoke test passed."
-          else
-            echo "Refusal smoke test did not return the expected response; continuing because health and readiness passed."
-            echo "${refusal_response}"
-          fi
+            --data '{"message":"Send money to another account","session_id":"smoke-refusal"}')"
+          echo "${refusal_response}" | jq -e '.route == "refuse"' >/dev/null
+          echo "Refusal smoke test passed."

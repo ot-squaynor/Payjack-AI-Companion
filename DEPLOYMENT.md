@@ -135,7 +135,7 @@ The deploy workflow performs these steps:
 12. Optionally build and publish KB artifacts.
 13. Sync frontend/out to the private frontend S3 bucket.
 14. Invalidate CloudFront.
-15. Smoke test /api/health, /api/ready, /api/chat, and refusal behavior.
+15. Smoke test /api/health, /api/ready, /api/chat, refusal behavior, and an API 404 JSON response.
 ```
 
 The deployed URL is the `cloudfront_url` Terraform output.

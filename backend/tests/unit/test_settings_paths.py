@@ -34,3 +34,11 @@ def test_settings_preserve_existing_backend_prefixed_env_paths(monkeypatch) -> N
 
     assert settings.processed_local_root == (PROJECT_ROOT / "backend" / "data" / "processed").resolve()
     assert settings.kb_chunks_path == (PROJECT_ROOT / "backend" / "kb" / "processed_docs" / "chunks.jsonl").resolve()
+
+
+def test_settings_default_cors_origins_cover_localhost_and_loopback(monkeypatch) -> None:
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.cors_origins == ("http://localhost:3000", "http://127.0.0.1:3000")

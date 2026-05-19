@@ -475,7 +475,6 @@ Open a second PowerShell window for the frontend:
 cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion\frontend
 
 npm install
-$env:NEXT_PUBLIC_API_BASE_URL = "http://127.0.0.1:8000"
 $env:NEXT_PUBLIC_DEFAULT_USER_ID = "dev-user"
 $env:NEXT_PUBLIC_DEFAULT_TENANT_ID = "dev-tenant"
 $env:NEXT_PUBLIC_DEFAULT_ACCOUNT_IDS = "acc-001"
@@ -509,7 +508,6 @@ In a second CMD window:
 cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion\frontend
 
 npm install
-set NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 set NEXT_PUBLIC_DEFAULT_USER_ID=dev-user
 set NEXT_PUBLIC_DEFAULT_TENANT_ID=dev-tenant
 set NEXT_PUBLIC_DEFAULT_ACCOUNT_IDS=acc-001
@@ -518,6 +516,7 @@ npm run dev
 ```
 
 Local backend configuration is sourced from `backend/.env.example` and the auto-loaded local `backend/.env`.
+During `npm run dev`, the frontend defaults to `http://127.0.0.1:8000` for API calls. Set `NEXT_PUBLIC_API_BASE_URL` only when you need to point at a different backend.
 For local acceptance, set `USE_MOCK_BEDROCK=false`, set an explicit `BEDROCK_MODEL_ID`, and verify the responding model through `response.debug.model_id` in the frontend debug page or chat API response.
 
 ---
