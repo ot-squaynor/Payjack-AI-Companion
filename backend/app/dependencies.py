@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from app.config import Settings
 from app.llm.autoregressive.bedrock_client import build_generation_client
+from app.memory.session_memory import InMemorySessionMemoryStore
 from app.orchestrator.workflow_engine import WorkflowEngine
 from app.rag.retriever import build_retriever
 from app.repository.contracts import StoreLocation
@@ -23,6 +24,7 @@ class AppDependencies:
     tool_registry: ToolRegistry
     llm_client: object
     retriever: object | None
+    session_memory: InMemorySessionMemoryStore
     workflow_engine: WorkflowEngine
 
 
@@ -40,11 +42,13 @@ def build_dependencies(settings: Settings | None = None) -> AppDependencies:
     tool_registry = ToolRegistry(store=store)
     retriever = build_retriever(resolved_settings)
     llm_client = build_generation_client(resolved_settings)
+    session_memory = InMemorySessionMemoryStore()
     workflow_engine = WorkflowEngine(
         settings=resolved_settings,
         tool_registry=tool_registry,
         llm_client=llm_client,
         retriever=retriever,
+        session_memory=session_memory,
     )
     return AppDependencies(
         settings=resolved_settings,
@@ -52,5 +56,6 @@ def build_dependencies(settings: Settings | None = None) -> AppDependencies:
         tool_registry=tool_registry,
         llm_client=llm_client,
         retriever=retriever,
+        session_memory=session_memory,
         workflow_engine=workflow_engine,
     )

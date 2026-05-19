@@ -7,7 +7,7 @@ This is the core module that ties together all the different components of the a
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import time
 import uuid
 
@@ -16,6 +16,11 @@ from app.config import Settings
 from app.errors import PolicyViolationError
 from app.llm.autoregressive.bedrock_client import GenerationRequest
 from app.llm.prompts.system_prompt import build_system_prompt
+from app.memory.session_memory import (
+    InMemorySessionMemoryStore,
+    ToolMemoryFact,
+    resolve_contextual_followup,
+)
 from app.orchestrator.context_builder import build_generation_prompt
 from app.orchestrator.intent_router import route_message
 from app.rag.retriever import RetrieverResult
@@ -58,6 +63,25 @@ class WorkflowEngine:
     tool_registry: ToolRegistry
     llm_client: object
     retriever: object | None = None # type is object to avoid circular import, should implement RetrieverProtocol
+    session_memory: InMemorySessionMemoryStore = field(default_factory=InMemorySessionMemoryStore)
+
+    def _remember_response(
+        self,
+        *,
+        response: ChatResponse,
+        user_message: str,
+        tool_facts: list[ToolMemoryFact] | None = None,
+    ) -> ChatResponse:
+        self.session_memory.record_exchange(
+            session_id=response.session_id,
+            user_message=user_message,
+            assistant_answer=response.answer,
+            request_id=response.request_id,
+            route=response.route,
+            tool_facts=tool_facts or [],
+            citations=[citation.model_dump() for citation in response.citations],
+        )
+        return response
 
     def handle_chat(
         self,
@@ -75,8 +99,49 @@ class WorkflowEngine:
             max_message_chars=self.settings.max_message_chars,
         )
 
+        memory_snapshot = self.session_memory.get(session_id)
+        memory_followup = resolve_contextual_followup(request.message, memory_snapshot)
+        if memory_followup is not None:
+            total_duration = measure_duration("chat_request", started_at)
+            debug = {}
+            if self.settings.enable_debug_traces:
+                debug = {
+                    "memory_context": memory_followup.to_debug_dict(),
+                    "duration_ms": total_duration.milliseconds,
+                }
+            response = format_chat_response(
+                request_id=request_id,
+                session_id=session_id,
+                route=memory_followup.route,
+                answer=memory_followup.answer,
+                tool_traces=[],
+                citations=[],
+                debug=debug,
+            )
+            log_audit_event(
+                event_type="chat_response",
+                request_id=request_id,
+                auth_context=auth_context,
+                payload={
+                    "route": memory_followup.route,
+                    "intent": "contextual_followup",
+                    "confidence": memory_followup.confidence,
+                    "allowed": True,
+                    "refusal_reason": None,
+                    "duration_ms": total_duration.milliseconds,
+                    "tool_count": 0,
+                    "citation_count": 0,
+                    "memory_source_request_id": memory_followup.source_request_id,
+                },
+            )
+            return self._remember_response(
+                response=response,
+                user_message=request.message,
+            )
+
         route_decision = route_message(request.message)
         tool_traces: list[dict[str, object]] = []
+        memory_tool_facts: list[ToolMemoryFact] = []
         citations: list[dict[str, object]] = []
         retrieval_result = RetrieverResult.empty(reason="retrieval_not_requested")
         retrieval_requested = route_decision.requires_policy_docs
@@ -105,7 +170,7 @@ class WorkflowEngine:
                     "citation_count": 0,
                 },
             )
-            return format_chat_response(
+            response = format_chat_response(
                 request_id=request_id,
                 session_id=session_id,
                 route=route_decision.route,
@@ -114,6 +179,10 @@ class WorkflowEngine:
                 citations=[],
                 refusal=static_plan.refusal,
                 debug=debug,
+            )
+            return self._remember_response(
+                response=response,
+                user_message=request.message,
             )
 
         if route_decision.tool_invocations:
@@ -125,6 +194,14 @@ class WorkflowEngine:
                             arguments=dict(tool_plan.arguments),
                         ),
                         auth_context=auth_context,
+                    )
+                    memory_tool_facts.append(
+                        ToolMemoryFact(
+                            name=tool_result.name,
+                            arguments=dict(tool_result.arguments),
+                            result=dict(tool_result.payload),
+                            artifact_version=tool_result.artifact_version,
+                        )
                     )
                     tool_traces.append(
                         {
@@ -145,7 +222,7 @@ class WorkflowEngine:
                         "tool_unavailable_reason": str(exc),
                         "duration_ms": total_duration.milliseconds,
                     }
-                return format_chat_response(
+                response = format_chat_response(
                     request_id=request_id,
                     session_id=session_id,
                     route=route_decision.route,
@@ -153,6 +230,10 @@ class WorkflowEngine:
                     tool_traces=[],
                     citations=[],
                     debug=debug,
+                )
+                return self._remember_response(
+                    response=response,
+                    user_message=request.message,
                 )
 
         if retrieval_requested:
@@ -230,7 +311,7 @@ class WorkflowEngine:
             },
         )
 
-        return format_chat_response(
+        response = format_chat_response(
             request_id=request_id,
             session_id=session_id,
             route=route_decision.route,
@@ -238,4 +319,9 @@ class WorkflowEngine:
             tool_traces=tool_traces,
             citations=citations,
             debug=debug,
+        )
+        return self._remember_response(
+            response=response,
+            user_message=request.message,
+            tool_facts=memory_tool_facts,
         )

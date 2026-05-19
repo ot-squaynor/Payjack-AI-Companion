@@ -115,6 +115,33 @@ def test_chat_route_handles_hybrid_fee_question(test_client, auth_headers) -> No
     assert payload["refusal"] is None
 
 
+def test_chat_route_resolves_spend_followup_from_session_memory(test_client, auth_headers) -> None:
+    session_id = "session-memory-spend-1"
+    first_response = test_client.post(
+        "/chat",
+        headers=auth_headers,
+        json={"message": "How much have I spent in total?", "session_id": session_id},
+    )
+
+    assert first_response.status_code == 200
+    first_payload = first_response.json()
+    assert first_payload["route"] == "deterministic_tool_route"
+    assert first_payload["tool_traces"][0]["name"] == "spend_summary"
+
+    followup_response = test_client.post(
+        "/chat",
+        headers=auth_headers,
+        json={"message": "so how many GHS", "session_id": session_id},
+    )
+
+    assert followup_response.status_code == 200
+    followup_payload = followup_response.json()
+    assert followup_payload["route"] == "memory_context_route"
+    assert "73.00 GHS" in followup_payload["answer"]
+    assert "3 transactions" in followup_payload["answer"]
+    assert followup_payload["debug"]["memory_context"]["source_tool_name"] == "spend_summary"
+
+
 def test_chat_route_handles_unavailable_tool_data_gracefully(
     configured_test_env,
     auth_headers,
