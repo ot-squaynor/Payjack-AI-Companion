@@ -312,5 +312,5 @@ jobs:
             -H "x-payjack-roles: customer" \
             -H "x-payjack-account-ids: acc-001" \
             --data '{"message":"Send money to another account","session_id":"smoke-refusal"}')"
-          echo "${refusal_response}" | jq -e '.route == "refuse"' >/dev/null
+          echo "${refusal_response}" | jq -e '.route == "refusal_route" and .refusal.category == "money_movement_or_account_execution"' >/dev/null
           echo "Refusal smoke test passed."
