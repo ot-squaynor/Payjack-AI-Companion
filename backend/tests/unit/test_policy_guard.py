@@ -32,3 +32,17 @@ def test_output_policy_uses_the_same_safety_rules() -> None:
 
     assert decision.allowed is False
     assert decision.category == "prompt_extraction"
+
+
+def test_output_policy_allows_transfer_limit_explanations() -> None:
+    decision = evaluate_output_policy("The PayJack daily transfer limit is 5000 GHS.")
+
+    assert decision.allowed is True
+    assert decision.category is None
+
+
+def test_output_policy_blocks_assistant_transaction_execution_claim() -> None:
+    decision = evaluate_output_policy("I will transfer 500 GHS from your account now.")
+
+    assert decision.allowed is False
+    assert decision.category == "money_movement_or_account_execution"

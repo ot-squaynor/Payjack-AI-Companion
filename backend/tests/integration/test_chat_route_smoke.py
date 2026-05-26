@@ -58,6 +58,21 @@ def test_chat_route_returns_grounded_doc_response(test_client, auth_headers) -> 
     assert payload["citations"][0]["title"] == "Fees Policy"
 
 
+def test_chat_route_allows_transfer_limit_doc_response(test_client, auth_headers) -> None:
+    response = test_client.post(
+        "/chat",
+        headers=auth_headers,
+        json={"message": "What is the Payjack daily transfer limit?", "session_id": "session-transfer-limit-1"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["route"] == "rag_route"
+    assert payload["refusal"] is None
+    assert payload["citations"]
+    assert payload["citations"][0]["title"] == "Payjack Transfer Limits"
+
+
 def test_chat_route_falls_back_when_docs_are_not_reliable(test_client, auth_headers) -> None:
     response = test_client.post(
         "/chat",
