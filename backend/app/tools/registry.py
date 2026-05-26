@@ -1,3 +1,6 @@
+# app/tools/registry.py
+# 2026-03-02
+"""Purpose: Define the ToolRegistry for managing and invoking data processing tools."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

@@ -1,3 +1,14 @@
+# app/orchestrator/response_planner.py
+# 2026-05-08
+"""Response planner module for constructing static response plans based on intent classification decisions. 
+This module contains logic for building static response plans that can be returned directly to the user without LLM generation based on the 
+classified intent of their message. For example, if a user's message is classified as a refusal intent, this module can generate a static response 
+plan that includes an appropriate refusal message and any safe redirection guidance. If a user's message is classified as needing clarification, 
+this module can generate a static response plan that includes a clarification question to ask the user. By centralizing this logic in one place, 
+we can ensure consistency in how static responses are generated across different parts of the application and make it easier to maintain and update 
+the response planning process as needed."""
+
+#IMPORTS
 from __future__ import annotations
 
 from dataclasses import dataclass

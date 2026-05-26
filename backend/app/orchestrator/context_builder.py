@@ -5,6 +5,7 @@ tool results, and retrieved context. This module is intentionally kept free of i
 since the context builder is used by multiple other modules. If you need to import something, 
 consider whether it belongs in this file or if it should be passed in as an argument from the caller instead."""
 
+
 from __future__ import annotations
 
 from typing import Any
@@ -17,7 +18,7 @@ from app.llm.prompts.tool_summarizer_prompt import build_tool_summarizer_prompt
 def build_generation_prompt(
     *,
     user_message: str, # e.g. "What is the revenue for Q1 2024?"
-    route: str,
+    route: str, # e.g. "safe_general_route", "tool_route", "rag_route", "hybrid_route"
     tool_results: list[dict[str, Any]], # e.g. [{"tool_name": "get_payjack_data", "output": "result of tool call"}, ...]
     citations: list[dict[str, Any]], # e.g. [{"source": "file.txt", "text": "relevant excerpt from file.txt"}, ...]
     grounding_mode: str, # e.g. "retrieval", "tool_calls", "none"

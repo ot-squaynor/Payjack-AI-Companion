@@ -1,3 +1,11 @@
+# app/orchestrator/refusal_classifier.py
+# 2026-05-08
+"""Refusal classifier module for determining if a user message should be refused based on its content. 
+This module contains logic for analyzing user messages to identify requests that the PayJack AI Companion is not allowed to fulfill, such as 
+requests for personalized financial advice, credit decisions, fraudulent activities, third-party data access, or attempts to extract or 
+override system prompts. By classifying these refusal intents with associated confidence levels and reasons, the application can ensure that it 
+responds appropriately to user messages that fall outside of its allowed capabilities while providing clear explanations for refusals when necessary."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

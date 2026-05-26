@@ -1,3 +1,11 @@
+# app/llm/prompts/tool_summarizer_prompt.py
+# 2026-04-16
+"""Prompt construction for summarizing tool results and retrieved context to send to the LLM for generation. 
+This module is responsible for building the prompt that will be sent to the LLM for generation, based on the user message, tool results, 
+and retrieved context. It encapsulates the logic for how to combine these different sources of information into a coherent prompt that the LLM 
+can understand and use to generate a response. By centralizing this logic in one place, we can ensure consistency across different parts of the 
+application and make it easier to maintain and update the prompt construction process as needed."""
+
 from __future__ import annotations
 
 import json

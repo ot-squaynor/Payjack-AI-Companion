@@ -1,3 +1,12 @@
+# app/rag/retriever.py
+# 2026-04-18
+"""Module for retrieving relevant chunks of information based on user queries in the RAG pipeline.
+This module defines the `KnowledgeRetriever` class, which is responsible for retrieving and ranking chunks of information based on a user's query. 
+It applies metadata-based filters to ensure that only relevant chunks are considered and uses a ranking mechanism to prioritize the most relevant 
+chunks. The retrieved chunks are then formatted as citations that can be used in generating responses to user queries. This module also includes 
+helper functions for loading chunks from local files or S3 storage, as well as a factory function for building a `KnowledgeRetriever` instance 
+based on application settings."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

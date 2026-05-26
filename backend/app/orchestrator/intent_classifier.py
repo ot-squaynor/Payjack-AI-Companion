@@ -1,3 +1,12 @@
+# app/orchestrator/intent_classifier.py
+# 2026-04-16
+"""Intent classification module for classifying user messages into handling routes and extracting relevant information for tool calls.
+This module is responsible for analyzing user messages and determining the appropriate handling route (tool, RAG, hybrid, clarify, refuse) 
+based on the content of the message. It also extracts relevant information from the message, such as date filters, categories, and other parameters
+that can be used for tool calls. By centralizing this logic in one place, we can ensure consistency in how user messages are interpreted across 
+different parts of the application and make it easier to maintain and update the classification logic as needed."""
+
+# IMPORTS
 from __future__ import annotations
 
 import calendar
@@ -6,7 +15,7 @@ from datetime import date, timedelta
 import re
 from typing import Literal
 
-
+# Define the possible route names as a literal type for better type checking and clarity in the codebase.
 RouteName = Literal[
     "deterministic_tool_route",
     "rag_route",
@@ -16,7 +25,7 @@ RouteName = Literal[
     "safe_general_route",
 ]
 
-
+# Mapping of month names to their corresponding numbers for easier date filter extraction from user messages.
 MONTH_NAME_TO_NUMBER = {
     "january": 1,
     "february": 2,
@@ -31,8 +40,10 @@ MONTH_NAME_TO_NUMBER = {
     "november": 11,
     "december": 12,
 }
-MONTH_NAMES_PATTERN = "|".join(MONTH_NAME_TO_NUMBER)
 
+# Pattern for matching month names
+MONTH_NAMES_PATTERN = "|".join(MONTH_NAME_TO_NUMBER)
+# Regular expressions for extracting information from user messages, such as amounts, statuses, date ranges, and vague requests.
 AMOUNT_ABOVE_RE = re.compile(
     r"\b(?:above|over|more than|greater than)\s+(?P<amount>\d+(?:\.\d+)?)\s*(?:cedis?|ghs)?\b"
 )
@@ -58,7 +69,7 @@ MONTH_DAY_RANGE_RE = re.compile(
 IN_MONTH_RE = re.compile(r"\b(?:in|during|for)\s+(?P<month>" + MONTH_NAMES_PATTERN + r")\b")
 QUARTER_RE = re.compile(r"\bq(?P<quarter>[1-4])\b|\b(?P<word>first|second|third|fourth)\s+quarter\b")
 
-
+# Keywords for categorizing transactions into different categories based on the presence of certain terms in the user message.
 CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "groceries": ("grocery", "groceries", "supermarket", "food"),
     "transport": ("transport", "fuel", "taxi", "ride", "bus"),
@@ -70,6 +81,7 @@ CATEGORY_KEYWORDS: dict[str, tuple[str, ...]] = {
     "entertainment": ("entertainment", "streaming", "cinema"),
 }
 
+# Common vague requests that lack sufficient information for classification and may require clarification from the user to determine their intent and the appropriate handling route. This set can be expanded as we identify more vague requests in user interactions.
 VAGUE_REQUESTS = {
     "what happened",
     "what happened?",
@@ -83,6 +95,7 @@ VAGUE_REQUESTS = {
     "check this?",
 }
 
+# Terms that indicate a user is asking about Payjack documentation or policies, which may require RAG or hybrid handling routes.
 PAYJACK_DOC_TERMS = (
     "payjack",
     "jackinvest",
@@ -103,6 +116,8 @@ PAYJACK_DOC_TERMS = (
     "transfer limit",
     "kyc",
 )
+
+# Terms that indicate a user is asking about their personal financial data, which may require tool-based handling routes.
 PAYJACK_DOC_WITHOUT_BRAND_TERMS = (
     "onboarding",
     "help centre",
@@ -147,13 +162,13 @@ PERSONAL_ANCHORS = (
     "have i",
 )
 
-
+# Data class for defining the structure of a tool plan, which includes the name of the tool to be called and the arguments to be passed to that tool based on the user's message and intent.
 @dataclass(frozen=True, slots=True)
 class ToolPlan:
     name: str
     arguments: dict[str, object] = field(default_factory=dict)
 
-
+# Data class for defining the structure of an intent classification result, which includes the determined route for handling the user message, the identified intent, confidence level, and any relevant flags or information about the requirements for handling the message (such as whether user data or policy documents are needed, whether the response should be read-only, any clarification questions to ask the user, and any tool plans that should be executed). This structured format allows for consistent handling of user messages across different parts of the application based on their classified intent.
 @dataclass(frozen=True, slots=True)
 class IntentClassification:
     route: RouteName
@@ -165,20 +180,20 @@ class IntentClassification:
     clarification_question: str | None = None
     tool_plans: tuple[ToolPlan, ...] = ()
 
-
+# Helper function for normalizing user messages by stripping leading/trailing whitespace, converting to lowercase, and collapsing multiple spaces into a single space. This helps ensure that the intent classification logic can operate on a consistent format of the user message, improving the accuracy of pattern matching and keyword detection.
 def _normalize(message: str) -> str:
     return " ".join(message.strip().lower().split())
 
-
+# Helper function for checking if any of a given set of terms are present in a text, which is used for determining whether a user message contains certain keywords that indicate specific intents or requirements for handling the message.
 def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
     return any(term in text for term in terms)
 
-
+# Helper function for calculating the start and end dates for a given month in the current year, which is used for extracting date filters from user messages that specify a particular month for querying financial data. This function takes into account the varying number of days in each month to ensure accurate date ranges are generated for tool calls that require date-based filtering.
 def _month_range(current_date: date, month: int) -> tuple[str, str]:
     end_day = calendar.monthrange(current_date.year, month)[1]
     return date(current_date.year, month, 1).isoformat(), date(current_date.year, month, end_day).isoformat()
 
-
+# Helper function for calculating the start and end dates for either the current month or the previous month based on the user's message, which is used for extracting date filters from user messages that specify "this month" or "last month". This function determines the appropriate date range to use for tool calls that require monthly filtering of financial data.
 def _this_or_previous_month(current_date: date, *, previous: bool) -> tuple[str, str]:
     first_day_this_month = current_date.replace(day=1)
     if previous:
@@ -186,7 +201,7 @@ def _this_or_previous_month(current_date: date, *, previous: bool) -> tuple[str,
         return previous_month_end.replace(day=1).isoformat(), previous_month_end.isoformat()
     return first_day_this_month.isoformat(), current_date.isoformat()
 
-
+# Helper function for calculating the start and end dates for a relative date range based on the user's message, such as "past 7 days" or "last 3 months". This function takes into account the current date and the specified count and unit of time to generate an appropriate date range for tool calls that require relative date filtering of financial data.
 def _relative_range(current_date: date, count: int, unit: str) -> tuple[str, str]:
     unit = unit.rstrip("s")
     if unit == "day":
@@ -202,7 +217,7 @@ def _relative_range(current_date: date, count: int, unit: str) -> tuple[str, str
         start = date(year, month, 1)
     return start.isoformat(), current_date.isoformat()
 
-
+# Helper function for extracting date filters from a user message by checking for various patterns that indicate specific date ranges, such as "today", "yesterday", "last month", "this month", "last year", "this year", relative date ranges like "past 7 days", specific quarters, and specific month-day ranges. This function returns a dictionary of date filter arguments that can be used for tool calls that require date-based filtering of financial data based on the user's message.
 def _extract_date_filters(message: str, *, current_date: date) -> dict[str, object]:
     filters: dict[str, object] = {}
     if "today" in message:
@@ -287,7 +302,7 @@ def _extract_date_filters(message: str, *, current_date: date) -> dict[str, obje
 
     return filters
 
-
+# Helper function for extracting categories from a user message by checking for the presence of keywords associated with different categories of transactions (such as groceries, transport, bills, etc.) and returning a tuple of identified categories that can be used for tool calls that require category-based filtering of financial data based on the user's message.
 def _extract_categories(message: str) -> tuple[str, ...]:
     categories: list[str] = []
     for category, keywords in CATEGORY_KEYWORDS.items():
@@ -295,14 +310,14 @@ def _extract_categories(message: str) -> tuple[str, ...]:
             categories.append(category)
     return tuple(dict.fromkeys(categories))
 
-
+# Helper function for extracting a minimum amount filter from a user message by checking for patterns that indicate the user is asking about transactions above a certain amount, and returning a dictionary with the appropriate filter argument that can be used for tool calls that require amount-based filtering of financial data based on the user's message.
 def _extract_minimum_amount_filter(message: str) -> dict[str, object]:
     match = AMOUNT_ABOVE_RE.search(message)
     if match is None:
         return {}
     return {"min_average_amount": match.group("amount")}
 
-
+# Helper function for extracting a limit on the number of transactions to return from a user message by checking for patterns that indicate the user is asking about the "last N" transactions, and returning the appropriate limit value that can be used for tool calls that require limiting the number of results based on the user's message. If no specific limit is mentioned, a default value is used, and if the message contains vague references to recent transactions, a default limit of 1 is applied.
 def _extract_limit(message: str, *, default: int) -> int:
     match = LAST_N_RE.search(message)
     if match is None:
@@ -311,7 +326,7 @@ def _extract_limit(message: str, *, default: int) -> int:
         return default
     return max(1, min(int(match.group("count")), 100))
 
-
+# Helper function for extracting a grouping parameter from a user message by checking for patterns that indicate the user is asking for a breakdown of spending or transactions by month, merchant, or category, and returning the appropriate grouping value that can be used for tool calls that require grouping results based on the user's message.
 def _extract_group_by(message: str) -> str | None:
     if "month-by-month" in message or "month by month" in message or "monthly" in message or "compare" in message:
         return "month"
@@ -321,7 +336,7 @@ def _extract_group_by(message: str) -> str | None:
         return "category"
     return None
 
-
+# Helper function for checking if a user message is considered vague based on a predefined set of vague requests and certain patterns that indicate a lack of specificity in the user's query. This function helps identify messages that may require clarification from the user to determine their intent and the appropriate handling route.
 def _common_tool_arguments(message: str, *, current_date: date) -> dict[str, object]:
     arguments = _extract_date_filters(message, current_date=current_date)
     categories = _extract_categories(message)
@@ -329,11 +344,11 @@ def _common_tool_arguments(message: str, *, current_date: date) -> dict[str, obj
         arguments["categories"] = categories
     return arguments
 
-
+# Helper function for extracting date filters from a user message by checking for various patterns that indicate specific date ranges, such as "today", "yesterday", "last month", "this month", "last year", "this year", relative date ranges like "past 7 days", specific quarters, and specific month-day ranges. This function returns a dictionary of date filter arguments that can be used for tool calls that require date-based filtering of financial data based on the user's message.
 def _date_tool_arguments(message: str, *, current_date: date) -> dict[str, object]:
     return _extract_date_filters(message, current_date=current_date)
 
-
+# Helper function for checking if a user message is considered vague based on a predefined set of vague requests and certain patterns that indicate a lack of specificity in the user's query. This function helps identify messages that may require clarification from the user to determine their intent and the appropriate handling route.
 def _is_vague(message: str) -> bool:
     if message in VAGUE_REQUESTS:
         return True
@@ -341,7 +356,7 @@ def _is_vague(message: str) -> bool:
         return True
     return False
 
-
+# Helper function for determining if a user message is asking about Payjack documentation or policies by checking for the presence of certain keywords and patterns that indicate the user is seeking information about Payjack-specific features, fees, limits, policies, or procedures. This function helps identify messages that may require RAG or hybrid handling routes based on their content.
 def _is_payjack_documentation_query(message: str) -> bool:
     if "fee" in message and _is_user_data_query(message):
         return True
@@ -353,7 +368,7 @@ def _is_payjack_documentation_query(message: str) -> bool:
         return _contains_any(message, PAYJACK_DOC_TERMS)
     return False
 
-
+# Helper function for determining if a user message is asking about their personal financial data by checking for the presence of certain keywords and patterns that indicate the user is seeking information about their transactions, spending, balances, or other personal financial data. This function helps identify messages that may require tool-based handling routes based on their content.
 def _is_user_data_query(message: str) -> bool:
     if not _contains_any(message, USER_DATA_TERMS):
         return False
@@ -363,7 +378,7 @@ def _is_user_data_query(message: str) -> bool:
         return True
     return False
 
-
+# Helper function for selecting the appropriate tool plans based on the content of the user message and the current date. This function checks for various patterns and keywords in the message to determine which tools should be called and with what arguments to retrieve the necessary information for generating a response to the user's query.
 def _select_tool_plans(message: str, *, current_date: date) -> tuple[ToolPlan, ...]:
     common_arguments = _common_tool_arguments(message, current_date=current_date)
 
@@ -409,7 +424,7 @@ def _select_tool_plans(message: str, *, current_date: date) -> tuple[ToolPlan, .
 
     return ()
 
-
+# Helper function for determining if a user message that contains a request for a spending summary requires clarification about the scope of the spending being queried (such as date range or category) based on the presence of certain patterns in the message and the arguments extracted for the spend_summary tool plan. This function helps identify cases where the user's request is too vague to determine the appropriate scope for the spending summary and may require a clarification question to be asked to ensure accurate handling of the query.
 def _needs_spend_clarification(message: str, tool_plans: tuple[ToolPlan, ...]) -> bool:
     if not tool_plans or tool_plans[0].name != "spend_summary":
         return False
@@ -421,7 +436,7 @@ def _needs_spend_clarification(message: str, tool_plans: tuple[ToolPlan, ...]) -
     generic_spend_request = re.fullmatch(r"(?:how much did i spend|summari[sz]e my spending|my spending)", message) is not None
     return generic_spend_request and not has_time_or_filter
 
-
+# Function for classifying the intent of a user message by analyzing its content and determining the appropriate handling route, identified intent, confidence level, and any relevant requirements or tool plans based on the presence of certain keywords, patterns, and extracted information from the message. This function serves as the core of the intent classification logic, allowing the application to route user messages to the correct handling mode (tool, RAG, hybrid, clarification, refusal) based on their classified intent and the specific information they contain.
 def classify_intent(message: str, *, current_date: date | None = None) -> IntentClassification:
     current_date = current_date or date.today()
     lowered = _normalize(message)

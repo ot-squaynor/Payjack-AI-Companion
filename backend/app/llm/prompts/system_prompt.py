@@ -1,3 +1,11 @@
+# app/llm/prompts/system_prompt.py
+# 2026-04-16
+"""Prompt construction for the system prompt that sets the behavior of the LLM for generation. 
+This module is responsible for building the system prompt that will be sent to the LLM for generation, based on the current route and grounding mode. 
+The system prompt provides high-level instructions to the LLM about how it should approach generating a response, including any constraints 
+or guidelines it should follow. By centralizing this logic in one place, we can ensure consistency across different parts of the application and make it easier 
+to maintain and update the system prompt as needed."""
+
 from __future__ import annotations
 
 
