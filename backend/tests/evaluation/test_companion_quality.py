@@ -8,6 +8,15 @@ ALLOWED_RAG_CASES = {
     "Where can I find PayJack fee explanations?": "rag_route",
 }
 
+ALLOWED_SENSITIVE_RAG_CASES = {
+    "What does PayJack's KYC policy require?": "rag_route",
+    "Explain PayJack credit eligibility factors.": "rag_route",
+    "How does PayJack prevent account fraud?": "rag_route",
+    "What should I do if a PayJack transfer fails?": "rag_route",
+    "How does PayJack handle disputes or chargebacks?": "rag_route",
+    "What are JackInvest risks?": "rag_route",
+}
+
 ALLOWED_TOOL_CASES = {
     "Summarise my spending this month.": ("deterministic_tool_route", "spend_summary"),
     "How much did I spend on groceries last month?": ("deterministic_tool_route", "spend_summary"),
@@ -39,6 +48,15 @@ SAFE_GENERAL_CASES = (
 
 def test_allowed_rag_questions_are_not_refused() -> None:
     for message, route in ALLOWED_RAG_CASES.items():
+        decision = route_message(message)
+
+        assert decision.route == route
+        assert decision.allowed is True
+        assert decision.requires_policy_docs is True
+
+
+def test_sensitive_policy_questions_route_to_rag_not_refusal() -> None:
+    for message, route in ALLOWED_SENSITIVE_RAG_CASES.items():
         decision = route_message(message)
 
         assert decision.route == route

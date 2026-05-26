@@ -17,9 +17,15 @@ INFORMATIONAL_PREFIXES = (
     "how can i",
     "how would i",
     "how does",
+    "can i",
+    "can payjack",
+    "does payjack",
     "explain",
     "what is",
     "what are",
+    "what does",
+    "what happens if",
+    "what should i do if",
     "why",
     "where",
     "show me how",
@@ -89,6 +95,38 @@ PROMPT_EXTRACTION_PATTERNS = (
     re.compile(r"\boverride\b.*\b(?:policy|guardrails|instructions)\b"),
 )
 
+SENSITIVE_POLICY_CONTEXT_TERMS = (
+    "payjack",
+    "jackinvest",
+    "policy",
+    "policies",
+    "help center",
+    "help centre",
+    "documentation",
+    "docs",
+    "kyc",
+    "verification",
+    "onboarding",
+    "eligibility",
+    "requirements",
+    "credit",
+    "loan",
+    "fraud",
+    "security",
+    "privacy",
+    "dispute",
+    "chargeback",
+    "failed transfer",
+    "reversal",
+    "risk",
+    "risks",
+)
+
+UNSAFE_FRAUD_INSTRUCTION_RE = re.compile(
+    r"\b(?:how\s+(?:do|can|would)\s+i|show\s+me\s+how|guide\s+me|help\s+me|tell\s+me\s+how|ways\s+to)\b"
+    r".*\b(?:bypass|fake|hide|delete|remove|alter|change)\b"
+)
+
 
 @dataclass(frozen=True, slots=True)
 class RefusalClassification:
@@ -104,6 +142,12 @@ def _normalized_message(message: str) -> str:
 
 def _is_informational_request(lowered: str) -> bool:
     return lowered.startswith(INFORMATIONAL_PREFIXES)
+
+
+def _is_sensitive_policy_question(lowered: str) -> bool:
+    return _is_informational_request(lowered) and any(
+        term in lowered for term in SENSITIVE_POLICY_CONTEXT_TERMS
+    )
 
 
 def _blocked(
@@ -125,6 +169,8 @@ def classify_refusal_intent(message: str) -> RefusalClassification:
     if not lowered:
         return RefusalClassification(allowed=True, confidence=0.0)
 
+    is_sensitive_policy_question = _is_sensitive_policy_question(lowered)
+
     if any(pattern.search(lowered) for pattern in PROMPT_EXTRACTION_PATTERNS):
         return _blocked(
             intent="prompt_extraction",
@@ -140,6 +186,8 @@ def classify_refusal_intent(message: str) -> RefusalClassification:
         )
 
     if any(pattern.search(lowered) for pattern in FRAUD_PATTERNS):
+        if is_sensitive_policy_question and not UNSAFE_FRAUD_INSTRUCTION_RE.search(lowered):
+            return RefusalClassification(allowed=True, confidence=0.78)
         return _blocked(
             intent="fraud_bypass_or_record_tampering",
             confidence=0.95,
@@ -147,6 +195,8 @@ def classify_refusal_intent(message: str) -> RefusalClassification:
         )
 
     if any(pattern.search(lowered) for pattern in CREDIT_DECISION_PATTERNS):
+        if is_sensitive_policy_question and " me " not in f" {lowered} " and " my " not in f" {lowered} ":
+            return RefusalClassification(allowed=True, confidence=0.78)
         return _blocked(
             intent="credit_approval_or_eligibility_decision",
             confidence=0.93,
