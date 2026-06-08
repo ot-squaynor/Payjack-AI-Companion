@@ -1,3 +1,8 @@
+# app/orchestrator/intent_router.py
+# 2026-03-02
+"""Purpose: Classify user message intents and route to appropriate processing pipelines."""
+
+# Standard imports
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,7 +11,7 @@ from typing import Any
 from app.orchestrator.intent_classifier import ToolPlan, classify_intent
 from app.orchestrator.refusal_classifier import classify_refusal_intent
 
-
+# 
 @dataclass(frozen=True, slots=True)
 class RouteDecision:
     route: str
@@ -21,19 +26,23 @@ class RouteDecision:
     tool_invocations: tuple[ToolPlan, ...] = ()
     reason: str = "intent_policy_decision"
 
+    # Derived properties for convenience
     @property
     def tool_name(self) -> str | None:
+        """Assumes the first tool invocation is the primary one for routing purposes."""
         if not self.tool_invocations:
             return None
         return self.tool_invocations[0].name
-
+    # Additional derived properties can be added here as needed, e.g., for specific tool arguments
     @property
     def tool_arguments(self) -> dict[str, object]:
+        """Assumes the first tool invocation is the primary one for routing purposes."""
         if not self.tool_invocations:
             return {}
         return dict(self.tool_invocations[0].arguments)
 
     def to_debug_dict(self) -> dict[str, Any]:
+        """Convert the RouteDecision to a dictionary for debugging/logging purposes."""
         return {
             "route": self.route,
             "intent": self.intent,
@@ -51,8 +60,9 @@ class RouteDecision:
             "reason": self.reason,
         }
 
-
+# Main routing function
 def route_message(message: str) -> RouteDecision:
+    """Classify the intent of the user message and determine routing and permissions."""
     refusal = classify_refusal_intent(message)
     if not refusal.allowed:
         return RouteDecision(

@@ -16,6 +16,14 @@ def format_chat_response(
     refusal: dict[str, Any] | None = None,
     debug: dict[str, Any] | None = None,
 ) -> ChatResponse:
+    """Formats the response from the orchestrator into a ChatResponse object that can be returned to the client.
+    This function takes the raw components of the response, including the request ID, session ID,
+    route, generated answer, tool traces, citations, refusal information, and any debug data, 
+    and constructs a ChatResponse object that encapsulates all of this information in a structured format.
+    The tool traces and citations are converted from their raw dictionary forms into lists of ToolTrace and
+    Citation objects, respectively, while the refusal information is converted into a Refusal object if it is present. 
+    The resulting ChatResponse object provides a clear and organized representation of the response that can be easily consumed 
+    by the client application."""
     return ChatResponse(
         request_id=request_id,
         session_id=session_id,

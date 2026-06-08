@@ -45,6 +45,12 @@ SAFE_REDIRECTS: dict[str, str] = {
 
 
 def build_refusal_plan(decision: RouteDecision) -> StaticResponsePlan:
+    """Constructs a StaticResponsePlan for refusal intents based on the provided RouteDecision. 
+    This function takes the classified intent and any associated prohibited reason from the RouteDecision and constructs a refusal message 
+    that explains why the request cannot be fulfilled. It also includes safe redirection guidance based on the specific intent, 
+    using predefined messages from the SAFE_REDIRECTS dictionary. The resulting StaticResponsePlan includes both the refusal message 
+    and any relevant redirection guidance, providing a clear and informative response to the user while ensuring that the system's limitations 
+    and policies are communicated effectively."""
     reason = decision.prohibited_reason or "I cannot help with that request."
     redirect = SAFE_REDIRECTS.get(
         decision.intent,

@@ -72,6 +72,13 @@ class WorkflowEngine:
         user_message: str,
         tool_facts: list[ToolMemoryFact] | None = None,
     ) -> ChatResponse:
+        """Records the exchange of a user message and assistant response into the session memory, including any tool facts and citations,
+        and returns the original response. This function takes the structured ChatResponse object, 
+        extracts the relevant information such as the session ID, request ID, route, and answer, 
+        and combines it with the original user message and any tool facts to create a comprehensive record of the interaction. 
+        The tool facts are stored in a structured format that includes the name of the tool, its arguments, results, 
+        and any artifact version information. Additionally, any citations included in the response are also recorded in the session memory. 
+        This allows for a complete history of the conversation to be maintained, which can be useful for future context retrieval and analysis."""
         self.session_memory.record_exchange(
             session_id=response.session_id,
             user_message=user_message,
@@ -89,6 +96,20 @@ class WorkflowEngine:
         *,
         auth_context: AuthContext,
     ) -> ChatResponse:
+        """Handles a chat request by orchestrating the entire workflow from input validation to response generation and formatting.
+        This function serves as the main entry point for processing a chat request. It begins by validating the input message and ensuring 
+        it meets the defined constraints.
+        It then checks for any relevant contextual follow-ups based on the session memory, which allows the system to maintain continuity 
+        in the conversation.
+        If no contextual follow-up is found, it proceeds to route the message to determine the appropriate processing path, 
+        which may include static responses or tool invocations.
+        If tool invocations are required, it executes them and collects their results, while also handling any potential errors 
+        that may arise during tool execution.
+        If retrieval of external context is needed, it performs the retrieval and incorporates any relevant citations into the response.
+        Finally, it constructs the prompt for the language model, generates the response, evaluates it against output policies, 
+        and formats the final response to be returned to the client.
+        Throughout the process, it also logs relevant audit events and measures the duration of the request handling for monitoring and 
+        debugging purposes."""
         request_id = request.client_request_id or f"req-{uuid.uuid4().hex[:12]}"
         session_id = request.session_id or f"session-{uuid.uuid4().hex[:12]}"
         started_at = time.perf_counter()

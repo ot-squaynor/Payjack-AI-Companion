@@ -23,6 +23,9 @@ def build_generation_prompt(
     citations: list[dict[str, Any]], # e.g. [{"source": "file.txt", "text": "relevant excerpt from file.txt"}, ...]
     grounding_mode: str, # e.g. "retrieval", "tool_calls", "none"
 ) -> str:
+    """Builds the prompt to send to the LLM for generation based on the user message, tool results, 
+    and retrieved context. The prompt is constructed in a way that provides the LLM with all the necessary information 
+    to generate a relevant and accurate response, while also adhering to any constraints or guidelines specified by the route and grounding mode."""
     return build_tool_summarizer_prompt(
         user_message=user_message, # e.g. "What is the revenue for Q1 2024?"
         route=route,

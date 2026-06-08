@@ -137,14 +137,18 @@ class RefusalClassification:
 
 
 def _normalized_message(message: str) -> str:
+    """Normalize the message by stripping leading/trailing whitespace, converting to lowercase, and collapsing multiple spaces into one."""
     return " ".join(message.strip().lower().split())
 
 
 def _is_informational_request(lowered: str) -> bool:
+    """Determine if the message is likely an informational request based on whether it starts with common informational prefixes."""
     return lowered.startswith(INFORMATIONAL_PREFIXES)
 
 
 def _is_sensitive_policy_question(lowered: str) -> bool:
+    """Determine if the message is likely asking about sensitive policies or PayJack-specific context 
+    by checking for the presence of key terms in the message, but only if it appears to be an informational request."""
     return _is_informational_request(lowered) and any(
         term in lowered for term in SENSITIVE_POLICY_CONTEXT_TERMS
     )
@@ -156,6 +160,7 @@ def _blocked(
     confidence: float,
     reason: str,
 ) -> RefusalClassification:
+    """Helper function to create a RefusalClassification for blocked messages with a specific intent, confidence level, and reason."""
     return RefusalClassification(
         allowed=False,
         intent=intent,
@@ -165,6 +170,12 @@ def _blocked(
 
 
 def classify_refusal_intent(message: str) -> RefusalClassification:
+    """Classify the refusal intent of a user message by checking it against various patterns that indicate prohibited requests.
+    The function normalizes the message and then checks for patterns related to prompt extraction, third-party data access, fraud, 
+    credit decisions, and financial advice.
+    If a pattern is matched, it returns a RefusalClassification indicating that the request is not allowed, 
+    along with the intent, confidence level, and reason for refusal.
+    If no patterns are matched, it returns a RefusalClassification indicating that the request is allowed with a default confidence level."""
     lowered = _normalized_message(message)
     if not lowered:
         return RefusalClassification(allowed=True, confidence=0.0)
