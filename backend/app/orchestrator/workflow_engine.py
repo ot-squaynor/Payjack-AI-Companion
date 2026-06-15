@@ -276,6 +276,10 @@ class WorkflowEngine:
             citations=citations,
             grounding_mode=grounding_mode,
         )
+        conversation_history = [
+            {"role": t.role, "content": t.content}
+            for t in memory_snapshot.turns
+        ]
         generation = self.llm_client.generate(
             GenerationRequest(
                 route=route_decision.route,
@@ -285,6 +289,7 @@ class WorkflowEngine:
                 grounding_mode=grounding_mode,
                 tool_results=tool_traces,
                 citations=citations,
+                conversation_history=conversation_history,
             )
         )
 

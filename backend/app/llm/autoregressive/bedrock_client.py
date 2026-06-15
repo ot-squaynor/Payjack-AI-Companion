@@ -28,6 +28,7 @@ class GenerationRequest:
     grounding_mode: str = "base"
     tool_results: list[dict[str, Any]] = field(default_factory=list)
     citations: list[dict[str, Any]] = field(default_factory=list)
+    conversation_history: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,15 +208,17 @@ class BedrockRuntimeClient:
         selected_model = select_model(route=request.route, settings=self.settings)
         request_id = f"bedrock-{uuid.uuid4().hex[:12]}"
         try:
+            history_messages = [
+                {"role": turn["role"], "content": [{"text": turn["content"]}]}
+                for turn in request.conversation_history
+            ]
+            messages = history_messages + [
+                {"role": "user", "content": [{"text": request.prompt}]}
+            ]
             response = self.client.converse(
                 modelId=selected_model.model_id,
                 system=[{"text": request.system_prompt}],
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [{"text": request.prompt}],
-                    }
-                ],
+                messages=messages,
             )
         except (BotoCoreError, ClientError) as exc:
             raise ModelInvocationError(
