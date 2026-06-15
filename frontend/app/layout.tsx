@@ -1,4 +1,4 @@
-import "@/app/globals.css";
+import "@/app/debug/globals.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
