@@ -99,12 +99,12 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
           <p>Read-only transaction interpretation and grounded product guidance.</p>
         </div>
         {/* //consider deleting this health panel if you don't want to show the backend status in the UI */}
-        <div className="health-panel" aria-live="polite">
+        {/* <div className="health-panel" aria-live="polite">
           <span className={healthError ? "status-badge error" : "status-badge ok"}>
             {healthError ? "Backend unavailable" : health?.status || "Checking"}
           </span>
           {healthError ? <p>{healthError}</p> : <p>{health?.environment || "local"}</p>}
-        </div>
+        </div> */}
       </div>
 
       <MessageList messages={messages} showDebug={showDebug} />
