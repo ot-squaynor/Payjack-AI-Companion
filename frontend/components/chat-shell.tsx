@@ -93,10 +93,12 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
     <section className="chat-shell" aria-label="Payjack AI chat workspace">
       <div className="chat-header">
         <div className="chat-title">
-          <p className="eyebrow">Payjack AI</p>
+          {/* //consider deleting eybrow or header */}
+          {/* <p className="eyebrow">Payjack AI</p> */}
           <h1>Payjack AI Financial Companion</h1>
           <p>Read-only transaction interpretation and grounded product guidance.</p>
         </div>
+        {/* //consider deleting this health panel if you don't want to show the backend status in the UI */}
         <div className="health-panel" aria-live="polite">
           <span className={healthError ? "status-badge error" : "status-badge ok"}>
             {healthError ? "Backend unavailable" : health?.status || "Checking"}
