@@ -116,7 +116,7 @@ jobs:
         run: |
           if terraform output -json > tf-outputs.raw; then
           python3 - <<'PY'
-          import json
+          import json, sys
           from pathlib import Path
 
           raw_path = Path("tf-outputs.raw")
@@ -124,14 +124,15 @@ jobs:
           raw = raw_path.read_text(encoding="utf-8")
           start = raw.find("{")
           if start == -1:
-            json_path.write_text("{}", encoding="utf-8")
-            raise SystemExit(0)
+            print(raw, file=sys.stderr)
+            raise SystemExit("terraform output did not contain a JSON object; cannot safely determine bucket names. Aborting destroy.")
 
           payload, _ = json.JSONDecoder().raw_decode(raw[start:])
           json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
           PY
           else
-            echo '{}' > tf-outputs.json
+            echo "terraform output failed; cannot safely determine bucket names. Aborting destroy."
+            exit 1
           fi
           jq -e . tf-outputs.json >/dev/null
 
@@ -158,17 +159,63 @@ jobs:
             fi
             for managed_bucket in "${managed_buckets[@]}"; do
               if [[ -n "${managed_bucket}" && "${managed_bucket}" == "${external_bucket}" ]]; then
-                echo "Refusing destroy: managed bucket output matches external tool pipeline bucket '${external_bucket}'."
+                echo "Refusing destroy: managed bucket output matches protected external tool pipeline bucket '${external_bucket}'."
                 exit 1
               fi
             done
           done
+
+          tf_ext_transactions="$(jq -r '.external_transactions_bucket_name.value // empty' terraform/tf-outputs.json)"
+          tf_ext_accounts="$(jq -r '.external_accounts_bucket_name.value // empty' terraform/tf-outputs.json)"
+
+          if [[ -n "${tf_ext_transactions}" && "${tf_ext_transactions}" != "${TF_VAR_external_transactions_bucket_name}" ]]; then
+            echo "State drift: Terraform state external_transactions_bucket_name='${tf_ext_transactions}' differs from env var '${TF_VAR_external_transactions_bucket_name}'. Aborting."
+            exit 1
+          fi
+          if [[ -n "${tf_ext_accounts}" && "${tf_ext_accounts}" != "${TF_VAR_external_accounts_bucket_name}" ]]; then
+            echo "State drift: Terraform state external_accounts_bucket_name='${tf_ext_accounts}' differs from env var '${TF_VAR_external_accounts_bucket_name}'. Aborting."
+            exit 1
+          fi
 
           echo "External tool pipeline buckets are not targeted by this destroy workflow."
 
       - name: Empty managed and KB buckets for non-prod destroy
         if: ${{ inputs.environment != 'prod' }}
         run: |
+          protected_buckets=(
+            "${TF_VAR_external_transactions_bucket_name}"
+            "${TF_VAR_external_accounts_bucket_name}"
+            "${TF_VAR_external_fees_bucket_name}"
+            "${TF_VAR_external_products_bucket_name}"
+            "${TF_VAR_external_metadata_bucket_name}"
+          )
+
+          is_protected_bucket() {
+            local bucket="$1"
+
+            for protected_bucket in "${protected_buckets[@]}"; do
+              if [[ -n "${protected_bucket}" && "${bucket}" == "${protected_bucket}" ]]; then
+                return 0
+              fi
+            done
+
+            return 1
+          }
+
+          require_not_protected_bucket() {
+            local bucket="$1"
+            local label="$2"
+
+            if [[ -z "${bucket}" ]]; then
+              return
+            fi
+
+            if is_protected_bucket "${bucket}"; then
+              echo "Refusing to empty protected external bucket for ${label}: ${bucket}"
+              exit 1
+            fi
+          }
+
           empty_s3_prefix_versions() {
             local bucket="$1"
             local prefix="$2"
@@ -177,6 +224,8 @@ jobs:
             if [[ -z "${bucket}" ]]; then
               return
             fi
+
+            require_not_protected_bucket "${bucket}" "${label}"
 
             echo "Emptying ${label}: s3://${bucket}/${prefix}"
             aws s3 rm "s3://${bucket}/${prefix}" --recursive
@@ -214,6 +263,7 @@ jobs:
 
           for bucket in "${managed_buckets[@]}"; do
             if [[ -n "${bucket}" ]]; then
+              require_not_protected_bucket "${bucket}" "managed environment bucket"
               echo "Emptying managed environment bucket: ${bucket}"
               aws s3 rm "s3://${bucket}" --recursive || true
             fi

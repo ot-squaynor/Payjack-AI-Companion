@@ -260,6 +260,19 @@ jobs:
         run: |
           FRONTEND_BUCKET="$(jq -r '.frontend_bucket_name.value' terraform/tf-outputs.json)"
           test -n "${FRONTEND_BUCKET}" || { echo "frontend_bucket_name output is empty."; exit 1; }
+
+          for ext_bucket in \
+            "${TF_VAR_external_transactions_bucket_name}" \
+            "${TF_VAR_external_accounts_bucket_name}" \
+            "${TF_VAR_external_fees_bucket_name}" \
+            "${TF_VAR_external_products_bucket_name}" \
+            "${TF_VAR_external_metadata_bucket_name}"; do
+            if [[ -n "${ext_bucket}" && "${FRONTEND_BUCKET}" == "${ext_bucket}" ]]; then
+              echo "Refusing sync: frontend_bucket_name '${FRONTEND_BUCKET}' matches protected external bucket."
+              exit 1
+            fi
+          done
+
           aws s3 sync frontend/out "s3://${FRONTEND_BUCKET}/" --delete
 
       - name: Invalidate CloudFront

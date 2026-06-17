@@ -85,6 +85,16 @@ variable "shared_kb_artifacts_bucket_name" {
 variable "external_transactions_bucket_name" {
   type    = string
   default = null
+
+  validation {
+    condition = var.external_transactions_bucket_name == null || (
+      !endswith(var.external_transactions_bucket_name, "-processed") &&
+      !endswith(var.external_transactions_bucket_name, "-frontend") &&
+      !endswith(var.external_transactions_bucket_name, "-kb-source") &&
+      !endswith(var.external_transactions_bucket_name, "-kb-artifacts")
+    )
+    error_message = "external_transactions_bucket_name must not match a managed bucket suffix (-processed, -frontend, -kb-source, -kb-artifacts)."
+  }
 }
 
 variable "external_transactions_prefix" {
@@ -95,6 +105,16 @@ variable "external_transactions_prefix" {
 variable "external_accounts_bucket_name" {
   type    = string
   default = null
+
+  validation {
+    condition = var.external_accounts_bucket_name == null || (
+      !endswith(var.external_accounts_bucket_name, "-processed") &&
+      !endswith(var.external_accounts_bucket_name, "-frontend") &&
+      !endswith(var.external_accounts_bucket_name, "-kb-source") &&
+      !endswith(var.external_accounts_bucket_name, "-kb-artifacts")
+    )
+    error_message = "external_accounts_bucket_name must not match a managed bucket suffix (-processed, -frontend, -kb-source, -kb-artifacts)."
+  }
 }
 
 variable "external_accounts_prefix" {
@@ -105,6 +125,16 @@ variable "external_accounts_prefix" {
 variable "external_fees_bucket_name" {
   type    = string
   default = null
+
+  validation {
+    condition = var.external_fees_bucket_name == null || (
+      !endswith(var.external_fees_bucket_name, "-processed") &&
+      !endswith(var.external_fees_bucket_name, "-frontend") &&
+      !endswith(var.external_fees_bucket_name, "-kb-source") &&
+      !endswith(var.external_fees_bucket_name, "-kb-artifacts")
+    )
+    error_message = "external_fees_bucket_name must not match a managed bucket suffix (-processed, -frontend, -kb-source, -kb-artifacts)."
+  }
 }
 
 variable "external_fees_prefix" {
@@ -115,6 +145,16 @@ variable "external_fees_prefix" {
 variable "external_products_bucket_name" {
   type    = string
   default = null
+
+  validation {
+    condition = var.external_products_bucket_name == null || (
+      !endswith(var.external_products_bucket_name, "-processed") &&
+      !endswith(var.external_products_bucket_name, "-frontend") &&
+      !endswith(var.external_products_bucket_name, "-kb-source") &&
+      !endswith(var.external_products_bucket_name, "-kb-artifacts")
+    )
+    error_message = "external_products_bucket_name must not match a managed bucket suffix (-processed, -frontend, -kb-source, -kb-artifacts)."
+  }
 }
 
 variable "external_products_prefix" {
@@ -125,6 +165,16 @@ variable "external_products_prefix" {
 variable "external_metadata_bucket_name" {
   type    = string
   default = null
+
+  validation {
+    condition = var.external_metadata_bucket_name == null || (
+      !endswith(var.external_metadata_bucket_name, "-processed") &&
+      !endswith(var.external_metadata_bucket_name, "-frontend") &&
+      !endswith(var.external_metadata_bucket_name, "-kb-source") &&
+      !endswith(var.external_metadata_bucket_name, "-kb-artifacts")
+    )
+    error_message = "external_metadata_bucket_name must not match a managed bucket suffix (-processed, -frontend, -kb-source, -kb-artifacts)."
+  }
 }
 
 variable "external_metadata_prefix" {

@@ -12,7 +12,7 @@ locals {
     var.tags
   )
 
-  force_destroy   = var.allow_force_destroy || var.environment != "prod"
+  force_destroy   = var.allow_force_destroy
   container_image = "${var.ecr_repository_url}:${var.image_tag}"
 
   external_transactions_bucket_name = var.external_transactions_bucket_name == null || trimspace(var.external_transactions_bucket_name) == "" ? null : var.external_transactions_bucket_name
