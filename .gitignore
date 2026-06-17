@@ -8,6 +8,9 @@ frontend/coverage/
 frontend/test-results/
 frontend/tsconfig.tsbuildinfo
 outputs/
+graphify-out/
+.agents/
+skills-lock.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
