@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getHealth, invokeToolDirect, sendChat } from "@/lib/api";
 import type { ConversationMessage, HealthResponse, ToolName } from "@/lib/types";
@@ -13,28 +13,50 @@ const TOOL_DISPLAY_NAMES: Record<ToolName, string> = Object.fromEntries(
   TOOL_CATALOG.map((t) => [t.name, t.label])
 ) as Record<ToolName, string>;
 
-const INITIAL_MESSAGE: ConversationMessage = {
+export const INITIAL_MESSAGE: ConversationMessage = {
   id: "assistant-intro",
   role: "assistant",
   content:
     "Ask me about your transactions, spend summaries, recurring payments, or Payjack documentation."
 };
 
+const NEAR_BOTTOM_PX = 80;
+
+function checkNearBottom(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+}
+
 type ChatShellProps = {
   showDebug?: boolean;
+  initialMessages?: ConversationMessage[];
+  initialSessionId?: string | null;
+  onMessagesChange?: (messages: ConversationMessage[], sessionId: string | null) => void;
+  onMobileSidebarOpen?: () => void;
 };
 
-export function ChatShell({ showDebug = false }: ChatShellProps) {
+export function ChatShell({
+  showDebug = false,
+  initialMessages,
+  initialSessionId = null,
+  onMessagesChange,
+  onMobileSidebarOpen
+}: ChatShellProps) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
   const [loading, setLoading] = useState(false);
   const [isToolMenuOpen, setIsToolMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
-  const [messages, setMessages] = useState<ConversationMessage[]>([INITIAL_MESSAGE]);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [messages, setMessages] = useState<ConversationMessage[]>(
+    initialMessages ?? [INITIAL_MESSAGE]
+  );
 
   useEffect(() => {
     getHealth()
@@ -53,13 +75,38 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
     }
   }, [loading]);
 
-  // Auto-scroll to bottom when messages change or loading state changes
+  // Debounced save to parent when messages or sessionId changes
   useEffect(() => {
+    if (!onMessagesChange) return;
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    saveDebounceRef.current = setTimeout(() => {
+      onMessagesChange(messages, sessionId);
+    }, 300);
+    return () => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+    };
+  }, [messages, sessionId, onMessagesChange]);
+
+  // Auto-scroll to bottom — only when autoScroll is true
+  useEffect(() => {
+    if (!autoScroll) {
+      if (messages.length > 1) setShowJumpToLatest(true);
+      return;
+    }
     const anchor = bottomAnchorRef.current;
     if (anchor && typeof anchor.scrollIntoView === "function") {
       anchor.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, loading]);
+  }, [messages, loading, autoScroll]);
+
+  // Scroll event handler — tracks whether user is near the bottom
+  const handleListScroll = useCallback(() => {
+    const el = messageListRef.current;
+    if (!el) return;
+    const near = checkNearBottom(el);
+    setAutoScroll(near);
+    if (near) setShowJumpToLatest(false);
+  }, []);
 
   // Alt+T keyboard shortcut to open tool menu
   useEffect(() => {
@@ -73,8 +120,25 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
     return () => document.removeEventListener("keydown", handler);
   }, [loading]);
 
+  const scrollToLatest = useCallback(() => {
+    const anchor = bottomAnchorRef.current;
+    if (anchor && typeof anchor.scrollIntoView === "function") {
+      anchor.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+
+  const handleJumpToLatest = useCallback(() => {
+    setAutoScroll(true);
+    setShowJumpToLatest(false);
+    scrollToLatest();
+  }, [scrollToLatest]);
+
   const submitMessage = async (text: string) => {
     if (!text.trim() || loading) return;
+
+    // Re-engage auto-scroll when user explicitly sends a message
+    setAutoScroll(true);
+    setShowJumpToLatest(false);
 
     const userMessage: ConversationMessage = {
       id: `user-${Date.now()}`,
@@ -131,6 +195,8 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
     setMessages([INITIAL_MESSAGE]);
     setSessionId(null);
     setInput("");
+    setAutoScroll(true);
+    setShowJumpToLatest(false);
     inputRef.current?.focus();
   };
 
@@ -170,9 +236,21 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
   return (
     <section className="chat-shell" aria-label="Payjack AI chat workspace">
       <div className="chat-header">
-        <div className="chat-title">
-          <h1>Payjack AI Financial Companion</h1>
-          <p>Read-only transaction interpretation and grounded product guidance.</p>
+        <div className="chat-header-left">
+          {onMobileSidebarOpen && (
+            <button
+              type="button"
+              className="sidebar-toggle-mobile"
+              onClick={onMobileSidebarOpen}
+              aria-label="Open chat history"
+            >
+              ☰
+            </button>
+          )}
+          <div className="chat-title">
+            <h1>Payjack AI Financial Companion</h1>
+            <p>Read-only transaction interpretation and grounded product guidance.</p>
+          </div>
         </div>
         {sessionId && (
           <div className="chat-header-actions">
@@ -193,6 +271,10 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         showDebug={showDebug}
         isLoading={loading}
         anchorRef={bottomAnchorRef}
+        listRef={messageListRef}
+        onScroll={handleListScroll}
+        showJumpToLatest={showJumpToLatest}
+        onJumpToLatest={handleJumpToLatest}
         onQuickPrompt={handleQuickPrompt}
       />
       <MessageInput

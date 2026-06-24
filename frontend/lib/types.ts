@@ -51,6 +51,15 @@ export interface ConversationMessage {
   isError?: boolean;
 }
 
+export interface StoredConversation {
+  id: string;
+  sessionId: string | null;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: ConversationMessage[];
+}
+
 // --- Direct Tool Invocation ---
 
 export type ToolName =
