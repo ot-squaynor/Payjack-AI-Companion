@@ -32,7 +32,7 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
 
   return (
     <div className="message-input">
-      <div className="composer-panel">
+      <div className={`composer-panel${disabled ? " is-loading" : ""}`}>
         <textarea
           ref={ref}
           value={value}
@@ -55,6 +55,7 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
               aria-haspopup="dialog"
             >
               ✦ Tools
+              <kbd className="tool-kbd-hint" aria-hidden="true">Alt T</kbd>
             </button>
           )}
           <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>

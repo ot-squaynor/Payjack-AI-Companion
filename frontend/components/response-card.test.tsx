@@ -50,8 +50,8 @@ describe("ResponseCard", () => {
     expect(screen.getByText(/Payjack cannot execute money movement/)).toBeInTheDocument();
     expect(screen.getByText("Tool Traces")).toBeInTheDocument();
     expect(screen.getByText("status_explanation")).toBeInTheDocument();
-    expect(screen.getByText("Citations")).toBeInTheDocument();
-    expect(screen.getByText("Fees Policy")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show 1 citation/i })).toBeInTheDocument();
+    expect(screen.queryByText("Fees Policy")).not.toBeInTheDocument();
     expect(screen.getByText("Debug")).toBeInTheDocument();
   });
 

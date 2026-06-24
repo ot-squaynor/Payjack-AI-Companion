@@ -130,7 +130,7 @@ function DateRangeFields({
   onChange: (key: string, value: string) => void;
 }) {
   return (
-    <>
+    <div className="tool-date-range-row">
       <div className="tool-form-field">
         <label htmlFor="tool-date-from">From date</label>
         <input
@@ -149,7 +149,33 @@ function DateRangeFields({
           onChange={(e) => onChange("date_to", e.target.value)}
         />
       </div>
-    </>
+    </div>
+  );
+}
+
+function AdvancedSection({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="tool-form-advanced-section">
+      <button
+        type="button"
+        className="tool-form-advanced-toggle"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="advanced-toggle-icon" aria-hidden="true">{open ? "▾" : "▸"}</span>
+        Advanced filters
+      </button>
+      {open && (
+        <div className="tool-form-advanced-fields">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -197,8 +223,7 @@ function ToolForm({
               onChange={(e) => onChange("limit", e.target.value)}
             />
           </div>
-          <details className="tool-form-advanced">
-            <summary>Advanced filters</summary>
+          <AdvancedSection>
             <div className="tool-form-field">
               <label htmlFor="tool-merchant">Merchant</label>
               <input
@@ -268,7 +293,7 @@ function ToolForm({
                 <option value="merchant">Merchant</option>
               </select>
             </div>
-          </details>
+          </AdvancedSection>
         </>
       )}
 
@@ -289,8 +314,7 @@ function ToolForm({
               <option value="currency">Currency</option>
             </select>
           </div>
-          <details className="tool-form-advanced">
-            <summary>Advanced filters</summary>
+          <AdvancedSection>
             <div className="tool-form-field">
               <label htmlFor="tool-direction-spend">Direction</label>
               <select
@@ -323,7 +347,7 @@ function ToolForm({
                 onChange={(e) => onChange("merchants", e.target.value)}
               />
             </div>
-          </details>
+          </AdvancedSection>
         </>
       )}
 
@@ -356,8 +380,7 @@ function ToolForm({
               <option value="high">High</option>
             </select>
           </div>
-          <details className="tool-form-advanced">
-            <summary>Advanced filters</summary>
+          <AdvancedSection>
             <div className="tool-form-field">
               <label htmlFor="tool-include-irregular">Include irregular</label>
               <select
@@ -402,7 +425,7 @@ function ToolForm({
                 onChange={(e) => onChange("categories", e.target.value)}
               />
             </div>
-          </details>
+          </AdvancedSection>
         </>
       )}
 
@@ -431,8 +454,7 @@ function ToolForm({
               onChange={(e) => onChange("limit", e.target.value)}
             />
           </div>
-          <details className="tool-form-advanced">
-            <summary>Advanced filters</summary>
+          <AdvancedSection>
             <div className="tool-form-field">
               <label htmlFor="tool-txn-ids">Transaction IDs (comma-separated)</label>
               <input
@@ -443,7 +465,7 @@ function ToolForm({
                 onChange={(e) => onChange("transaction_ids", e.target.value)}
               />
             </div>
-          </details>
+          </AdvancedSection>
         </>
       )}
 
@@ -461,7 +483,12 @@ function ToolForm({
           onClick={onSubmit}
           disabled={disabled}
         >
-          {disabled ? "Running…" : "Run Tool"}
+          {disabled ? (
+            <>
+              <span className="btn-spinner" aria-hidden="true" />
+              Running…
+            </>
+          ) : "Run Tool"}
         </button>
       </div>
     </div>

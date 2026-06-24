@@ -6,11 +6,19 @@ import { getHealth, invokeToolDirect, sendChat } from "@/lib/api";
 import type { ConversationMessage, HealthResponse, ToolName } from "@/lib/types";
 import { MessageInput } from "@/components/message-input";
 import { MessageList } from "@/components/message-list";
+import { Toast } from "@/components/toast";
 import { TOOL_CATALOG, ToolMenu } from "@/components/tool-menu";
 
 const TOOL_DISPLAY_NAMES: Record<ToolName, string> = Object.fromEntries(
   TOOL_CATALOG.map((t) => [t.name, t.label])
 ) as Record<ToolName, string>;
+
+const INITIAL_MESSAGE: ConversationMessage = {
+  id: "assistant-intro",
+  role: "assistant",
+  content:
+    "Ask me about your transactions, spend summaries, recurring payments, or Payjack documentation."
+};
 
 type ChatShellProps = {
   showDebug?: boolean;
@@ -23,15 +31,10 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isToolMenuOpen, setIsToolMenuOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [messages, setMessages] = useState<ConversationMessage[]>([
-    {
-      id: "assistant-intro",
-      role: "assistant",
-      content:
-        "Ask me about your transactions, spend summaries, recurring payments, or Payjack documentation."
-    }
-  ]);
+  const bottomAnchorRef = useRef<HTMLDivElement>(null);
+  const [messages, setMessages] = useState<ConversationMessage[]>([INITIAL_MESSAGE]);
 
   useEffect(() => {
     getHealth()
@@ -50,24 +53,40 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
     }
   }, [loading]);
 
-  const handleSubmit = async () => {
-    if (!input.trim() || loading) {
-      return;
+  // Auto-scroll to bottom when messages change or loading state changes
+  useEffect(() => {
+    const anchor = bottomAnchorRef.current;
+    if (anchor && typeof anchor.scrollIntoView === "function") {
+      anchor.scrollIntoView({ behavior: "smooth" });
     }
+  }, [messages, loading]);
+
+  // Alt+T keyboard shortcut to open tool menu
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === "t" && !loading) {
+        e.preventDefault();
+        setIsToolMenuOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [loading]);
+
+  const submitMessage = async (text: string) => {
+    if (!text.trim() || loading) return;
 
     const userMessage: ConversationMessage = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: input.trim()
+      content: text.trim()
     };
-    const nextInput = input.trim();
     setMessages((current) => [...current, userMessage]);
-    setInput("");
     setLoading(true);
 
     try {
       const response = await sendChat({
-        message: nextInput,
+        message: text.trim(),
         session_id: sessionId
       });
       setSessionId(response.session_id);
@@ -87,12 +106,32 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         {
           id: `assistant-error-${Date.now()}`,
           role: "assistant",
-          content: `Chat request failed: ${message}`
+          content: `Chat request failed: ${message}`,
+          isError: true
         }
       ]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async () => {
+    if (!input.trim() || loading) return;
+    const text = input.trim();
+    setInput("");
+    await submitMessage(text);
+  };
+
+  const handleQuickPrompt = (prompt: string) => {
+    if (loading) return;
+    submitMessage(prompt);
+  };
+
+  const handleReset = () => {
+    setMessages([INITIAL_MESSAGE]);
+    setSessionId(null);
+    setInput("");
+    inputRef.current?.focus();
   };
 
   const handleToolInvoke = async (tool: ToolName, args: Record<string, unknown>) => {
@@ -111,6 +150,7 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         ...current,
         { id: result.request_id, role: "assistant", content: "", toolResult: result }
       ]);
+      setToast("Tool result ready");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown tool error.";
       setMessages((current) => [
@@ -118,7 +158,8 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         {
           id: `assistant-tool-error-${Date.now()}`,
           role: "assistant",
-          content: `Tool invocation failed: ${message}`
+          content: `Tool invocation failed: ${message}`,
+          isError: true
         }
       ]);
     } finally {
@@ -130,21 +171,30 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
     <section className="chat-shell" aria-label="Payjack AI chat workspace">
       <div className="chat-header">
         <div className="chat-title">
-          {/* //consider deleting eybrow or header */}
-          {/* <p className="eyebrow">Payjack AI</p> */}
           <h1>Payjack AI Financial Companion</h1>
           <p>Read-only transaction interpretation and grounded product guidance.</p>
         </div>
-        {/* //consider deleting this health panel if you don't want to show the backend status in the UI */}
-        {/* <div className="health-panel" aria-live="polite">
-          <span className={healthError ? "status-badge error" : "status-badge ok"}>
-            {healthError ? "Backend unavailable" : health?.status || "Checking"}
-          </span>
-          {healthError ? <p>{healthError}</p> : <p>{health?.environment || "local"}</p>}
-        </div> */}
+        {sessionId && (
+          <div className="chat-header-actions">
+            <button
+              type="button"
+              className="new-session-btn"
+              onClick={handleReset}
+              aria-label="Start a new conversation"
+            >
+              New chat
+            </button>
+          </div>
+        )}
       </div>
 
-      <MessageList messages={messages} showDebug={showDebug} />
+      <MessageList
+        messages={messages}
+        showDebug={showDebug}
+        isLoading={loading}
+        anchorRef={bottomAnchorRef}
+        onQuickPrompt={handleQuickPrompt}
+      />
       <MessageInput
         ref={inputRef}
         value={input}
@@ -159,6 +209,7 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         onInvoke={handleToolInvoke}
         disabled={loading}
       />
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </section>
   );
 }

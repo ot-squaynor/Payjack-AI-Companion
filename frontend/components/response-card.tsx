@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { ChatResponse } from "@/lib/types";
 
 type ResponseCardProps = {
@@ -6,6 +9,8 @@ type ResponseCardProps = {
 };
 
 export function ResponseCard({ response, showDebug = false }: ResponseCardProps) {
+  const [citationsOpen, setCitationsOpen] = useState(false);
+
   return (
     <div className="response-card">
       <div className="response-answer">
@@ -35,13 +40,32 @@ export function ResponseCard({ response, showDebug = false }: ResponseCardProps)
 
       {response.citations.length > 0 ? (
         <div className="response-section">
-          <strong>Citations</strong>
-          {response.citations.map((citation) => (
-            <div key={`${citation.doc_id}-${citation.score}`} className="citation-card">
-              <p className="trace-title">{citation.title}</p>
-              <p>{citation.snippet}</p>
+          <button
+            type="button"
+            className="citations-toggle"
+            onClick={() => setCitationsOpen((open) => !open)}
+            aria-expanded={citationsOpen}
+          >
+            <span className="citations-toggle-icon" aria-hidden="true">
+              {citationsOpen ? "▾" : "▸"}
+            </span>
+            {citationsOpen
+              ? "Hide citations"
+              : `Show ${response.citations.length} citation${response.citations.length !== 1 ? "s" : ""}`}
+          </button>
+          {citationsOpen && (
+            <div>
+              {response.citations.map((citation) => (
+                <div key={`${citation.doc_id}-${citation.score}`} className="citation-card">
+                  <p className="trace-title">{citation.title}</p>
+                  <p>{citation.snippet}</p>
+                  <span className="citation-score">
+                    Relevance: {Math.round(citation.score * 100)}%
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       ) : null}
 

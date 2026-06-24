@@ -107,7 +107,7 @@ function SpendSummaryResult({ payload }: { payload: SpendSummaryPayload }) {
     <>
       <div style={{ marginBottom: 16 }}>
         <p style={{ color: "var(--text-muted)", fontSize: "0.78rem", margin: "0 0 4px" }}>Total spend</p>
-        <p style={{ color: "var(--text)", fontSize: "1.5rem", fontWeight: 760, margin: 0 }}>
+        <p style={{ color: "var(--payjack-yellow)", fontSize: "1.5rem", fontWeight: 760, margin: 0 }}>
           {currencies.length === 1
             ? formatAmount(payload.total_amount, currencies[0][0])
             : formatAmount(payload.total_amount)}
@@ -326,9 +326,9 @@ export function ToolResultCard({ toolResult }: ToolResultCardProps) {
         </div>
       )}
 
-      <ToolPayload toolResult={toolResult} />
-
       <AppliedFilters args={toolResult.arguments} />
+
+      <ToolPayload toolResult={toolResult} />
     </div>
   );
 }

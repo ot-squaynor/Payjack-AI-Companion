@@ -11,6 +11,20 @@ outputs/
 graphify-out/
 .agents/
 skills-lock.json
+.agent/
+.claude/
+.codebuddy/
+.codex/
+.continue/
+.cursor/
+.gemini/
+.kiro/
+.opencode/
+.qoder/
+.roo/
+.trae/
+.windsurf/
+.github/prompts/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

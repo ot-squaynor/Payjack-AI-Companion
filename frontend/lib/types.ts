@@ -48,6 +48,7 @@ export interface ConversationMessage {
   content: string;
   response?: ChatResponse;
   toolResult?: ToolInvokeResponse;
+  isError?: boolean;
 }
 
 // --- Direct Tool Invocation ---
