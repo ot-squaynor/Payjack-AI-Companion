@@ -6,6 +6,7 @@ type MessageInputProps = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onToolMenuOpen?: () => void;
   disabled?: boolean;
 };
 
@@ -14,6 +15,7 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
     value,
     onChange,
     onSubmit,
+    onToolMenuOpen,
     disabled = false
   },
   ref
@@ -43,6 +45,18 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
         />
         <div className="composer-actions">
           <span className="composer-context">Secure read-only companion</span>
+          {onToolMenuOpen && (
+            <button
+              type="button"
+              className="tool-menu-trigger"
+              onClick={onToolMenuOpen}
+              disabled={disabled}
+              aria-label="Open Payjack Tools menu"
+              aria-haspopup="dialog"
+            >
+              ✦ Tools
+            </button>
+          )}
           <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
             Send
           </button>

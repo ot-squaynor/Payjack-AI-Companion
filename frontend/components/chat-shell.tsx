@@ -2,10 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { getHealth, sendChat } from "@/lib/api";
-import type { ConversationMessage, HealthResponse } from "@/lib/types";
+import { getHealth, invokeToolDirect, sendChat } from "@/lib/api";
+import type { ConversationMessage, HealthResponse, ToolName } from "@/lib/types";
 import { MessageInput } from "@/components/message-input";
 import { MessageList } from "@/components/message-list";
+import { TOOL_CATALOG, ToolMenu } from "@/components/tool-menu";
+
+const TOOL_DISPLAY_NAMES: Record<ToolName, string> = Object.fromEntries(
+  TOOL_CATALOG.map((t) => [t.name, t.label])
+) as Record<ToolName, string>;
 
 type ChatShellProps = {
   showDebug?: boolean;
@@ -17,6 +22,7 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
   const [input, setInput] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isToolMenuOpen, setIsToolMenuOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([
     {
@@ -89,6 +95,37 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
     }
   };
 
+  const handleToolInvoke = async (tool: ToolName, args: Record<string, unknown>) => {
+    setIsToolMenuOpen(false);
+    const label = TOOL_DISPLAY_NAMES[tool] ?? tool;
+
+    setMessages((current) => [
+      ...current,
+      { id: `user-tool-${Date.now()}`, role: "user", content: `📊 ${label}` }
+    ]);
+    setLoading(true);
+
+    try {
+      const result = await invokeToolDirect({ tool, arguments: args });
+      setMessages((current) => [
+        ...current,
+        { id: result.request_id, role: "assistant", content: "", toolResult: result }
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown tool error.";
+      setMessages((current) => [
+        ...current,
+        {
+          id: `assistant-tool-error-${Date.now()}`,
+          role: "assistant",
+          content: `Tool invocation failed: ${message}`
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <section className="chat-shell" aria-label="Payjack AI chat workspace">
       <div className="chat-header">
@@ -113,6 +150,13 @@ export function ChatShell({ showDebug = false }: ChatShellProps) {
         value={input}
         onChange={setInput}
         onSubmit={handleSubmit}
+        onToolMenuOpen={() => setIsToolMenuOpen(true)}
+        disabled={loading}
+      />
+      <ToolMenu
+        isOpen={isToolMenuOpen}
+        onClose={() => setIsToolMenuOpen(false)}
+        onInvoke={handleToolInvoke}
         disabled={loading}
       />
     </section>

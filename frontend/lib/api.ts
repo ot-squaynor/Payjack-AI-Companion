@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatResponse, HealthResponse } from "@/lib/types";
+import type { ChatRequest, ChatResponse, HealthResponse, ToolInvokeRequest, ToolInvokeResponse } from "@/lib/types";
 
 const DEFAULT_API_BASE_URL =
   process.env.NODE_ENV === "development" ? "http://127.0.0.1:8000" : "/api";
@@ -57,4 +57,20 @@ export async function sendChat(payload: ChatRequest): Promise<ChatResponse> {
   }
 
   return readJsonResponse<ChatResponse>(response, "Chat request");
+}
+
+export async function invokeToolDirect(payload: ToolInvokeRequest): Promise<ToolInvokeResponse> {
+  const response = await fetch(`${API_BASE_URL}/tools/invoke`, {
+    method: "POST",
+    headers: buildHeaders(),
+    body: JSON.stringify(payload),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Tool invocation failed: ${response.status}`);
+  }
+
+  return readJsonResponse<ToolInvokeResponse>(response, "Tool invocation");
 }

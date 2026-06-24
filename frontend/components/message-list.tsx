@@ -1,5 +1,6 @@
 import type { ConversationMessage } from "@/lib/types";
 import { ResponseCard } from "@/components/response-card";
+import { ToolResultCard } from "@/components/tool-result-card";
 
 type MessageListProps = {
   messages: ConversationMessage[];
@@ -18,6 +19,8 @@ export function MessageList({ messages, showDebug = false }: MessageListProps) {
               <span className="message-meta">{isUser ? "You" : "Payjack AI"}</span>
               {isUser ? (
                 <div className="message-bubble user-bubble">{message.content}</div>
+              ) : message.toolResult ? (
+                <ToolResultCard toolResult={message.toolResult} />
               ) : message.response ? (
                 <ResponseCard response={message.response} showDebug={showDebug} />
               ) : (

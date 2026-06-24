@@ -188,3 +188,63 @@ test("renders a refusal response for disallowed actions", async ({ page }) => {
   await expect(page.getByText("Refusal")).toBeVisible();
   await expect(page.getByText(/Payjack cannot execute money movement/)).toBeVisible();
 });
+
+
+test("opens tool menu, selects Account Balances, submits, and renders ToolResultCard", async ({ page }) => {
+  await page.route(`${apiBaseUrl}/health`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ok", environment: "local" })
+    });
+  });
+
+  await page.route(`${apiBaseUrl}/tools/invoke`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        request_id: "req-tool-e2e-1",
+        tool: "balances",
+        arguments: { account_ids: ["acc-001"] },
+        payload: {
+          records: [
+            {
+              account_id: "acc-001",
+              account_name: "Main Wallet",
+              currency: "GHS",
+              current_balance: "1200.50",
+              available_balance: "1180.50"
+            }
+          ],
+          warnings: []
+        },
+        warnings: [],
+        artifact_version: "v1",
+        latency_ms: 12.4
+      })
+    });
+  });
+
+  await page.goto("/");
+
+  // Open the tool menu
+  await page.getByRole("button", { name: /open payjack tools menu/i }).click();
+
+  // Dialog should appear with all tools
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").getByText("Account Balances")).toBeVisible();
+
+  // Select Account Balances tool
+  await page.getByRole("dialog").getByText("Account Balances").click();
+
+  // Form view: no fields needed for balances — submit directly
+  await expect(page.getByRole("button", { name: "Run Tool" })).toBeVisible();
+  await page.getByRole("button", { name: "Run Tool" }).click();
+
+  // Dialog should close and result should appear in chat timeline
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.getByText("Main Wallet")).toBeVisible();
+  await expect(page.getByText(/1,200\.50/)).toBeVisible();
+  await expect(page.getByText(/read-only/i)).toBeVisible();
+});

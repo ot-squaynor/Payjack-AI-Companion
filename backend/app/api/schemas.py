@@ -58,4 +58,23 @@ class ChatResponse(BaseModel):
     refusal: Refusal | None = None
     debug: dict[str, Any] = Field(default_factory=dict)
 
+##BRICK 3: Direct tool invocation models
+class ToolInvokeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tool: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolInvokeResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    tool: str
+    arguments: dict[str, Any]
+    payload: dict[str, Any]
+    warnings: list[str]
+    artifact_version: str | None
+    latency_ms: float
+
 print("API schemas for chat requests and responses have been defined.")

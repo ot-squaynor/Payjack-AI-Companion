@@ -155,4 +155,101 @@ describe("frontend API client", () => {
 
     await expect(getHealth()).rejects.toThrow("Failed to fetch");
   });
+
+  it("invokes /tools/invoke with correct body and auth headers", async () => {
+    const mockResult = {
+      request_id: "req-tool-1",
+      tool: "balances",
+      arguments: { account_ids: ["acc-001"] },
+      payload: { records: [], warnings: [] },
+      warnings: [],
+      artifact_version: "v1",
+      latency_ms: 8.5
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { invokeToolDirect } = await import("@/lib/api");
+    const result = await invokeToolDirect({ tool: "balances", arguments: {} });
+
+    expect(result.tool).toBe("balances");
+    expect(result.request_id).toBe("req-tool-1");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/tools/invoke",
+      expect.objectContaining({
+        method: "POST",
+        cache: "no-store"
+      })
+    );
+    const callArgs = fetchMock.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(callArgs.body as string);
+    expect(body).toEqual({ tool: "balances", arguments: {} });
+    const headers = callArgs.headers as Record<string, string>;
+    expect(headers["x-payjack-user-id"]).toBe("dev-user");
+    expect(headers["x-payjack-account-ids"]).toBe("acc-001");
+  });
+
+  it("returns parsed ToolInvokeResponse on 200", async () => {
+    const mockResult = {
+      request_id: "req-tool-2",
+      tool: "transaction_lookup",
+      arguments: { limit: 5 },
+      payload: { records: [], match_count: 0, applied_filters: {}, warnings: [] },
+      warnings: [],
+      artifact_version: null,
+      latency_ms: 3.2
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(mockResult), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+    );
+
+    const { invokeToolDirect } = await import("@/lib/api");
+    const result = await invokeToolDirect({ tool: "transaction_lookup", arguments: { limit: 5 } });
+
+    expect(result.tool).toBe("transaction_lookup");
+    expect(result.latency_ms).toBe(3.2);
+    expect(result.artifact_version).toBeNull();
+  });
+
+  it("throws on non-200 tool invocation response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("Tool not found", { status: 422 }))
+    );
+
+    const { invokeToolDirect } = await import("@/lib/api");
+
+    await expect(
+      invokeToolDirect({ tool: "transaction_lookup", arguments: {} })
+    ).rejects.toThrow("Tool not found");
+  });
+
+  it("throws on non-JSON content-type from tool endpoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<!DOCTYPE html><html></html>", {
+          status: 200,
+          headers: { "Content-Type": "text/html" }
+        })
+      )
+    );
+
+    const { invokeToolDirect } = await import("@/lib/api");
+
+    await expect(
+      invokeToolDirect({ tool: "balances", arguments: {} })
+    ).rejects.toThrow("Tool invocation returned");
+  });
 });
