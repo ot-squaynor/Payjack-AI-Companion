@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -139,3 +140,125 @@ def test_status_explanation_returns_counts(test_client: TestClient, auth_headers
     payload = response.json()
     assert payload["tool"] == "status_explanation"
     assert "counts_by_status" in payload["payload"]
+
+
+# ── UI contract tests (date_from/date_to and other UI-specific arg names) ──────
+
+
+def test_transaction_lookup_with_ui_date_range(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "transaction_lookup", "arguments": {
+            "date_from": "2026-01-01", "date_to": "2026-03-31", "limit": 5,
+        }},
+    )
+    assert response.status_code == 200
+    assert "records" in response.json()["payload"]
+
+
+def test_transaction_lookup_with_ui_amount_range(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "transaction_lookup", "arguments": {
+            "amount_min": "10.00", "amount_max": "500.00",
+        }},
+    )
+    assert response.status_code == 200
+    assert "records" in response.json()["payload"]
+
+
+def test_spend_summary_with_ui_date_range_and_group_by(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "spend_summary", "arguments": {
+            "date_from": "2026-01-01", "date_to": "2026-03-31", "group_by": "category",
+        }},
+    )
+    assert response.status_code == 200
+    assert "grouped_breakdown" in response.json()["payload"]
+
+
+def test_recurring_detection_with_ui_cadence_confidence(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "recurring_detection", "arguments": {
+            "cadence": "monthly", "confidence": "high",
+        }},
+    )
+    assert response.status_code == 200
+    assert "records" in response.json()["payload"]
+
+
+def test_status_explanation_with_ui_date_range(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "status_explanation", "arguments": {
+            "date_from": "2026-01-01", "date_to": "2026-03-31",
+        }},
+    )
+    assert response.status_code == 200
+    assert "counts_by_status" in response.json()["payload"]
+
+
+def test_fee_breakdown_with_ui_date_range_and_limit(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "fee_breakdown", "arguments": {
+            "date_from": "2026-01-01", "date_to": "2026-03-31", "limit": 3,
+        }},
+    )
+    assert response.status_code == 200
+    assert "total_amount" in response.json()["payload"]
+
+
+def test_invalid_date_returns_422(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "transaction_lookup", "arguments": {"date_from": "not-a-date"}},
+    )
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "validation_error"
+    assert "date_from" in detail["message"]
+
+
+def test_balances_missing_accounts_artifact_returns_503(
+    test_client: TestClient, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repository.processed_store import ProcessedStoreError
+
+    def raise_store_error() -> None:
+        raise ProcessedStoreError("No artifact named 'accounts' exists in the processed manifest.")
+
+    dependencies = test_client.app.state.dependencies
+    monkeypatch.setattr(dependencies.tool_registry.store, "get_accounts", raise_store_error)
+
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "balances", "arguments": {}},
+    )
+    assert response.status_code == 503
+    detail = response.json()["detail"]
+    assert detail["code"] == "missing_artifact"
+    assert "accounts" in detail["message"]
+
+
+def test_original_internal_arg_names_still_work(test_client: TestClient, auth_headers: dict[str, str]) -> None:
+    # Regression: callers using the internal schema (start_date/end_date) must keep working.
+    response = test_client.post(
+        "/tools/invoke",
+        headers=auth_headers,
+        json={"tool": "transaction_lookup", "arguments": {
+            "start_date": "2026-01-01", "end_date": "2026-03-31",
+        }},
+    )
+    assert response.status_code == 200
+    assert "records" in response.json()["payload"]
