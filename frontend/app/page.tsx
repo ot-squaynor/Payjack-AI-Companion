@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 
+import { AppHeader } from "@/components/app-header";
 import { ChatShell } from "@/components/chat-shell";
 import { ChatHistorySidebar } from "@/components/chat-history-sidebar";
 import { useChatHistory } from "@/hooks/use-chat-history";
@@ -67,12 +68,12 @@ export default function HomePage() {
       />
       <div className="main-content">
         <main className="page-shell">
+          <AppHeader onMobileMenuOpen={() => setSidebarOpen(true)} />
           <ChatShell
             key={activeConvId ?? "default"}
             initialMessages={activeConv?.messages}
             initialSessionId={activeConv?.sessionId ?? null}
             onMessagesChange={handleMessagesChange}
-            onMobileSidebarOpen={() => setSidebarOpen(true)}
           />
         </main>
       </div>

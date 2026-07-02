@@ -76,7 +76,6 @@ a {
   display: grid;
   grid-template-rows: auto minmax(360px, 1fr) auto;
   gap: 22px;
-  min-height: calc(100vh - 56px);
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 26px;
@@ -99,7 +98,7 @@ a {
   opacity: 0.72;
 }
 
-.chat-header,
+.chat-toolbar,
 .message-list,
 .message-input {
   position: relative;
@@ -112,6 +111,7 @@ a {
   justify-content: space-between;
   align-items: flex-start;
   padding: 4px 2px 0;
+  margin-bottom: 22px;
 }
 
 .chat-header-left {
@@ -124,6 +124,14 @@ a {
 
 .chat-title {
   max-width: 700px;
+}
+
+.chat-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 4px 2px 0;
 }
 
 .eyebrow {
@@ -435,8 +443,7 @@ pre {
     padding: 12px;
   }
 
-  .page-shell,
-  .chat-shell {
+  .page-shell {
     min-height: calc(100vh - 24px);
   }
 
@@ -450,6 +457,7 @@ pre {
   .chat-header {
     flex-direction: column;
     gap: 16px;
+    margin-bottom: 16px;
   }
 
   .chat-header h1 {
@@ -490,8 +498,7 @@ pre {
     padding: 0;
   }
 
-  .page-shell,
-  .chat-shell {
+  .page-shell {
     min-height: 100vh;
   }
 

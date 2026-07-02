@@ -31,15 +31,13 @@ type ChatShellProps = {
   initialMessages?: ConversationMessage[];
   initialSessionId?: string | null;
   onMessagesChange?: (messages: ConversationMessage[], sessionId: string | null) => void;
-  onMobileSidebarOpen?: () => void;
 };
 
 export function ChatShell({
   showDebug = false,
   initialMessages,
   initialSessionId = null,
-  onMessagesChange,
-  onMobileSidebarOpen
+  onMessagesChange
 }: ChatShellProps) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
@@ -235,23 +233,7 @@ export function ChatShell({
 
   return (
     <section className="chat-shell" aria-label="Payjack AI chat workspace">
-      <div className="chat-header">
-        <div className="chat-header-left">
-          {onMobileSidebarOpen && (
-            <button
-              type="button"
-              className="sidebar-toggle-mobile"
-              onClick={onMobileSidebarOpen}
-              aria-label="Open chat history"
-            >
-              ☰
-            </button>
-          )}
-          <div className="chat-title">
-            <h1>Payjack AI Financial Companion</h1>
-            <p>Read-only transaction interpretation and grounded product guidance.</p>
-          </div>
-        </div>
+      <div className="chat-toolbar">
         {sessionId && (
           <div className="chat-header-actions">
             <button
