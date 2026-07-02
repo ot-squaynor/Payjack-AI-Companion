@@ -17,6 +17,21 @@ GitHub Actions
 The ECS/Fargate Terraform modules remain in the repository as optional historical
 infrastructure, but they are not the active deploy path.
 
+## Chat Response Routing
+
+Each chat request is classified by the orchestrator and handled by one of the following routes:
+
+| Route | Code name | Grounding mode | LLM called |
+|-------|-----------|----------------|------------|
+| Tools | `deterministic_tool_route` | `tool` | Yes — tool output injected into prompt |
+| RAG | `rag_route` | `rag` | Yes — retrieved KB chunks injected into prompt |
+| Hybrid | `hybrid_route` | `hybrid` | Yes — both tool output and KB chunks injected |
+| LLM Direct | `safe_general_route` | `base` | Yes — no tools, no retrieval, system prompt only |
+| Clarification | `clarification_route` | — | No — static question returned |
+| Refusal | `refusal_route` | — | No — static refusal message returned |
+
+The `USE_MOCK_BEDROCK` environment variable controls whether LLM calls go to Amazon Bedrock or to the local mock adapter. It applies equally to all four LLM routes. `BEDROCK_MODEL_ID` selects the foundation model used for all routes.
+
 ## Required AWS/GitHub Setup
 
 Use the externally provisioned GitHub Actions role, then configure the GitHub

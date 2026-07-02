@@ -44,15 +44,28 @@ The system has three primary intelligence layers:
 2. **RAG Layer (Knowledge Retrieval)**
 3. **LLM Generation Layer (Natural Language Responses)**
 
-These are coordinated by an **AI Orchestrator**.
+These are coordinated by an **AI Orchestrator** that classifies each message and selects one of four response routes:
+
+| Route | Code name | When used |
+|-------|-----------|-----------|
+| **Tools** | `deterministic_tool_route` | User asks about their own transactions, spending, balances, or recurring charges |
+| **RAG** | `rag_route` | User asks about Payjack documentation, fees, limits, policies, or features |
+| **Hybrid** | `hybrid_route` | User asks a question that needs both personal financial data and policy context |
+| **LLM Direct** | `safe_general_route` | User asks a safe, general question that does not require personal data or documentation lookup — answered by the LLM alone without any grounding |
+
+Static non-LLM paths also exist for `clarification_route` (vague requests) and `refusal_route` (disallowed requests). These return a fixed answer without calling the model.
 
 ### Current Runtime Flow
 
 ```text
 Next.js Chat Interface
   -> FastAPI API
-  -> Orchestrator
-  -> (Deterministic Tools and/or RAG Retriever)
+  -> Orchestrator (intent classification + route selection)
+  -> [Tools route]   Deterministic financial tool call(s)  -> LLM
+  -> [RAG route]     Knowledge Base retrieval              -> LLM
+  -> [Hybrid route]  Tools + Knowledge Base retrieval      -> LLM
+  -> [LLM Direct]    (no tools, no retrieval)              -> LLM
+  -> [Static]        Clarification or refusal answer (no LLM call)
   -> Bedrock or Mock Model Adapter
   -> Response Formatter
   -> Structured Output to User
@@ -84,12 +97,14 @@ Examples:
 
 ### Step 2: Intent Classification
 
-The orchestrator determines:
+The orchestrator classifies the message and picks a route:
 
-- Transaction question -> use Tools
-- Feature explanation -> use RAG
-- Mixed -> use both
-- Disallowed (advice/execution) -> refuse safely
+- Transaction / spend / balance / recurring question with personal anchor -> **Tools route**
+- Payjack documentation, fees, limits, policy, or product question -> **RAG route**
+- Personal data question that also needs policy context -> **Hybrid route**
+- Safe conversational or general question (no personal data, no docs needed) -> **LLM Direct route**
+- Vague or ambiguous message -> **Clarification** (static, no LLM call)
+- Disallowed request (advice, execution, PII extraction) -> **Refusal** (static, no LLM call)
 
 ---
 
@@ -123,14 +138,25 @@ This ensures:
 
 ---
 
+### Step 3C: LLM Direct (No Grounding)
+
+For safe general questions that do not need personal data or documentation, the orchestrator routes directly to the LLM with no tool call and no retrieval step. The system prompt constrains the model to Payjack-relevant, read-only responses. This is the `safe_general_route` (`grounding_mode = "base"`).
+
+Examples of messages that land here:
+- "What is PayJack?"
+- "How does mobile money work in Ghana?"
+- "Can you explain what a recurring payment is?"
+
+---
+
 ### Step 4: LLM Generation
 
 The system sends:
 
 - User message
-- Tool outputs (if any)
-- Retrieved RAG context (if any)
-- System guardrails
+- Tool outputs (if any — Tools and Hybrid routes only)
+- Retrieved RAG context (if any — RAG and Hybrid routes only)
+- System guardrails (all LLM routes)
 
 to a **Bedrock foundation model** in AWS, or to a local mock adapter during local-first development.
 
@@ -393,14 +419,18 @@ It can:
 - Call tools
 - Retrieve documents
 - Merge structured and unstructured context
-- Generate grounded responses
+- Generate grounded responses (Tools, RAG, or Hybrid routes)
+- Generate ungrounded responses from the LLM directly (LLM Direct / `safe_general_route`)
 
 Agent logic includes:
 
+- Route selection: `deterministic_tool_route`, `rag_route`, `hybrid_route`, `safe_general_route`, `clarification_route`, `refusal_route`
 - Tool allowlists
-- Clarification handling
-- Refusal handling
-- Audit logging
+- Clarification handling (static, no LLM call)
+- Refusal handling (static, no LLM call)
+- Audit logging on every route
+
+The LLM Direct route (`safe_general_route`) is used for safe conversational and general questions. No tools are called and no documents are retrieved — the model responds within the constraints of the system prompt alone. This keeps latency low for simple questions while still applying the same safety and audit layers.
 
 This keeps the assistant controlled, not autonomous.
 
@@ -640,7 +670,8 @@ The Payjack AI Financial Companion is:
 - Powered by Bedrock with a local mock seam for development
 - Grounded using RAG for documentation and policy/help content
 - Structured using deterministic financial tools
-- Orchestrated through a controlled workflow engine
+- Capable of answering safe general questions via LLM directly, without any tool calls or retrieval (`safe_general_route`)
+- Orchestrated through a controlled workflow engine with four active routes: Tools, RAG, Hybrid, and LLM Direct
 - Deployable on Lambda/API Gateway/CloudFront through GitHub Actions, Terraform, and Docker
 - Designed for compliance and auditability from day one
 
