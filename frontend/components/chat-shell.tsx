@@ -131,24 +131,11 @@ export function ChatShell({
     scrollToLatest();
   }, [scrollToLatest]);
 
-  const submitMessage = async (text: string) => {
-    if (!text.trim() || loading) return;
-
-    // Re-engage auto-scroll when user explicitly sends a message
-    setAutoScroll(true);
-    setShowJumpToLatest(false);
-
-    const userMessage: ConversationMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: text.trim()
-    };
-    setMessages((current) => [...current, userMessage]);
+  const runChatRequest = async (text: string) => {
     setLoading(true);
-
     try {
       const response = await sendChat({
-        message: text.trim(),
+        message: text,
         session_id: sessionId
       });
       setSessionId(response.session_id);
@@ -177,11 +164,46 @@ export function ChatShell({
     }
   };
 
+  const submitMessage = async (text: string) => {
+    if (!text.trim() || loading) return;
+
+    // Re-engage auto-scroll when user explicitly sends a message
+    setAutoScroll(true);
+    setShowJumpToLatest(false);
+
+    const userMessage: ConversationMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: text.trim()
+    };
+    setMessages((current) => [...current, userMessage]);
+    await runChatRequest(text.trim());
+  };
+
   const handleSubmit = async () => {
     if (!input.trim() || loading) return;
     const text = input.trim();
     setInput("");
     await submitMessage(text);
+  };
+
+  const handleRegenerate = async () => {
+    if (loading) return;
+    let lastUserContent: string | null = null;
+    let cutoffIndex = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        lastUserContent = messages[i].content;
+        cutoffIndex = i;
+        break;
+      }
+    }
+    if (lastUserContent === null || cutoffIndex === -1) return;
+
+    setAutoScroll(true);
+    setShowJumpToLatest(false);
+    setMessages((current) => current.slice(0, cutoffIndex + 1));
+    await runChatRequest(lastUserContent);
   };
 
   const handleQuickPrompt = (prompt: string) => {
@@ -258,6 +280,7 @@ export function ChatShell({
         showJumpToLatest={showJumpToLatest}
         onJumpToLatest={handleJumpToLatest}
         onQuickPrompt={handleQuickPrompt}
+        onRegenerate={handleRegenerate}
       />
       <MessageInput
         ref={inputRef}

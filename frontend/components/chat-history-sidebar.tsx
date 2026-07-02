@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { HelpCircle, Plus, Search, Settings, X } from "lucide-react";
 import type { StoredConversation } from "@/lib/types";
 import { getTimeGroup, type TimeGroup } from "@/hooks/use-chat-history";
 
@@ -35,6 +36,15 @@ function groupConversations(
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
+function SidebarBrand() {
+  return (
+    <div className="sidebar-brand-row">
+      <span className="sidebar-brand-mark" aria-hidden="true">P</span>
+      <span className="sidebar-brand-name">Payjack</span>
+    </div>
+  );
+}
+
 function NewChatButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -43,7 +53,7 @@ function NewChatButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       aria-label="Start a new conversation"
     >
-      <span aria-hidden="true">＋</span>
+      <Plus size={16} aria-hidden="true" />
       New chat
     </button>
   );
@@ -58,6 +68,7 @@ function ChatHistorySearch({
 }) {
   return (
     <div className="sidebar-search">
+      <Search size={14} className="sidebar-search-icon" aria-hidden="true" />
       <input
         type="search"
         placeholder="Search chats"
@@ -66,6 +77,21 @@ function ChatHistorySearch({
         aria-label="Search chat history"
       />
     </div>
+  );
+}
+
+function SidebarNav() {
+  return (
+    <nav className="sidebar-nav" aria-label="Support links">
+      <button type="button" className="sidebar-nav-item">
+        <Settings size={16} aria-hidden="true" />
+        Settings
+      </button>
+      <button type="button" className="sidebar-nav-item">
+        <HelpCircle size={16} aria-hidden="true" />
+        Help
+      </button>
+    </nav>
   );
 }
 
@@ -114,7 +140,7 @@ function ChatHistoryItem({
         aria-label={`Delete conversation: ${conversation.title}`}
         title="Delete"
       >
-        ✕
+        <X size={14} aria-hidden="true" />
       </span>
     </button>
   );
@@ -177,7 +203,7 @@ export function ChatHistorySidebar({
         aria-label="Chat history"
       >
         <div className="sidebar-header">
-          <span className="sidebar-brand">Chats</span>
+          <SidebarBrand />
           <button
             ref={closeRef}
             type="button"
@@ -185,7 +211,7 @@ export function ChatHistorySidebar({
             onClick={onMobileClose}
             aria-label="Close chat history sidebar"
           >
-            ×
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -223,6 +249,8 @@ export function ChatHistorySidebar({
             })
           )}
         </div>
+
+        <SidebarNav />
 
         <div className="sidebar-footer">
           <p className="sidebar-persistence-note">History stored locally</p>

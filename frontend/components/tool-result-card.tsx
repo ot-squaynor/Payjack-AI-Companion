@@ -1,5 +1,6 @@
 "use client";
 
+import { Wrench } from "lucide-react";
 import type {
   ToolInvokeResponse,
   TransactionLookupPayload,
@@ -304,13 +305,13 @@ type ToolResultCardProps = {
 export function ToolResultCard({ toolResult }: ToolResultCardProps) {
   const entry = TOOL_CATALOG.find((t) => t.name === toolResult.tool);
   const label = entry?.label ?? toolResult.tool;
-  const icon = entry?.icon ?? "🔧";
+  const Icon = entry?.icon ?? Wrench;
 
   return (
     <div className="tool-result-card" aria-label={`${label} result`}>
       <div className="tool-result-header">
         <h3 className="tool-result-title">
-          <span aria-hidden="true">{icon}</span> {label}
+          <span aria-hidden="true"><Icon size={16} /></span> {label}
         </h3>
         <span className="badge-readonly">read-only</span>
         <span className="badge-latency" aria-label={`${toolResult.latency_ms}ms`}>

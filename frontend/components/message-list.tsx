@@ -1,6 +1,8 @@
+import { ArrowDown, Bot, TriangleAlert, User } from "lucide-react";
 import type { ConversationMessage } from "@/lib/types";
 import { ResponseCard } from "@/components/response-card";
 import { ToolResultCard } from "@/components/tool-result-card";
+import { MessageActions } from "@/components/message-actions";
 
 const QUICK_PROMPTS = [
   "Show my last 10 transactions",
@@ -19,7 +21,15 @@ type MessageListProps = {
   showJumpToLatest?: boolean;
   onJumpToLatest?: () => void;
   onQuickPrompt?: (prompt: string) => void;
+  onRegenerate?: () => void;
 };
+
+function actionContentFor(message: ConversationMessage): string | null {
+  if (message.isError) return null;
+  if (message.toolResult) return JSON.stringify(message.toolResult.payload, null, 2);
+  if (message.response) return message.response.answer;
+  return message.content;
+}
 
 export function MessageList({
   messages,
@@ -30,9 +40,11 @@ export function MessageList({
   onScroll,
   showJumpToLatest = false,
   onJumpToLatest,
-  onQuickPrompt
+  onQuickPrompt,
+  onRegenerate
 }: MessageListProps) {
   const showChips = messages.length === 1 && !isLoading && onQuickPrompt;
+  const lastAssistantIndex = messages.map((m) => m.role).lastIndexOf("assistant");
 
   return (
     <div
@@ -44,11 +56,16 @@ export function MessageList({
       aria-live="polite"
       aria-relevant="additions"
     >
-      {messages.map((message) => {
+      {messages.map((message, index) => {
         const isUser = message.role === "user";
+        const actionContent = !isUser ? actionContentFor(message) : null;
+        const isLastAssistant = !isUser && index === lastAssistantIndex;
 
         return (
           <div key={message.id} className={isUser ? "message-row user" : "message-row assistant"}>
+            <span className={`message-avatar ${isUser ? "user" : "assistant"}`} aria-hidden="true">
+              {isUser ? <User size={14} /> : <Bot size={14} />}
+            </span>
             <div className="message-stack">
               <span className="message-meta">{isUser ? "You" : "Payjack AI"}</span>
               {isUser ? (
@@ -59,9 +76,20 @@ export function MessageList({
                 <ResponseCard response={message.response} showDebug={showDebug} />
               ) : (
                 <div className={`message-bubble ${message.isError ? "error-bubble" : "assistant-bubble"}`}>
-                  {message.isError && <span className="error-bubble-icon" aria-hidden="true">!</span>}
+                  {message.isError && (
+                    <span className="error-bubble-icon" aria-hidden="true">
+                      <TriangleAlert size={12} />
+                    </span>
+                  )}
                   {message.content}
                 </div>
+              )}
+              {actionContent !== null && (
+                <MessageActions
+                  content={actionContent}
+                  onRegenerate={isLastAssistant ? onRegenerate : undefined}
+                  disabled={isLoading}
+                />
               )}
             </div>
           </div>
@@ -89,6 +117,9 @@ export function MessageList({
 
       {isLoading && (
         <div className="message-row assistant" aria-live="polite" aria-label="Payjack AI is thinking">
+          <span className="message-avatar assistant" aria-hidden="true">
+            <Bot size={14} />
+          </span>
           <div className="message-stack">
             <span className="message-meta">Payjack AI</span>
             <div className="message-bubble assistant-bubble typing-indicator">
@@ -108,7 +139,8 @@ export function MessageList({
             onClick={onJumpToLatest}
             aria-label="Jump to latest message"
           >
-            ↓ Latest
+            <ArrowDown size={14} aria-hidden="true" />
+            Latest
           </button>
         </div>
       )}

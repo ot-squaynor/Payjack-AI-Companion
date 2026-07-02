@@ -16,7 +16,7 @@
   --border-strong: rgba(254, 254, 254, 0.18);
   --error: #ff8f7d;
   --error-surface: rgba(255, 143, 125, 0.12);
-  --focus-ring: rgba(246, 208, 0, 0.26);
+  --focus-ring: rgba(203, 128, 233, 0.397);
   --shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
 }
 
@@ -109,9 +109,9 @@ a {
   display: flex;
   gap: 24px;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 4px 2px 0;
-  margin-bottom: 22px;
+  align-items: center;
+  padding: 0 2px;
+  margin-bottom: 12px;
 }
 
 .chat-header-left {
@@ -120,6 +120,38 @@ a {
   gap: 12px;
   flex: 1;
   min-width: 0;
+}
+
+.chat-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.header-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.header-icon-btn:hover {
+  background: var(--surface-strong);
+  color: var(--text);
+  border-color: var(--payjack-lavender);
+}
+
+.header-icon-btn:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .chat-title {
@@ -151,18 +183,18 @@ a {
 .chat-header h1 {
   margin: 0;
   color: var(--text);
-  font-size: clamp(2rem, 5vw, 4.4rem);
+  font-size: clamp(1.3rem, 2.2vw, 1.7rem);
   font-weight: 760;
-  line-height: 0.95;
+  line-height: 1.15;
   letter-spacing: 0;
 }
 
 .chat-header p {
-  margin: 12px 0 0;
+  margin: 4px 0 0;
   max-width: 620px;
   color: var(--text-soft);
-  font-size: 1rem;
-  line-height: 1.55;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .health-panel {
@@ -231,6 +263,8 @@ a {
 
 .message-row {
   display: flex;
+  align-items: flex-start;
+  gap: 10px;
   width: 100%;
 }
 
@@ -240,6 +274,26 @@ a {
 
 .message-row.assistant {
   justify-content: flex-start;
+}
+
+.message-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.message-avatar.user {
+  background: linear-gradient(135deg, #6f45a0, var(--payjack-purple));
+  color: var(--text);
+}
+
+.message-avatar.assistant {
+  background: var(--surface-strong);
+  color: var(--teal);
 }
 
 .message-stack {
@@ -264,6 +318,53 @@ a {
   font-weight: 760;
   letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.message-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.message-action-btn:hover {
+  background: var(--surface-muted);
+  color: var(--text-soft);
+}
+
+.message-action-btn:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.message-action-btn.is-active {
+  color: var(--payjack-lavender);
+}
+
+.message-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.message-action-regenerate {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 760;
 }
 
 .message-bubble,
@@ -394,6 +495,21 @@ pre {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+.composer-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.composer-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .composer-context {
@@ -401,7 +517,24 @@ pre {
   font-size: 0.82rem;
 }
 
+.composer-char-count {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.composer-disclaimer {
+  margin: 10px 2px 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-align: center;
+}
+
 .message-input button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   flex: 0 0 auto;
   min-width: 94px;
   min-height: 42px;
@@ -455,13 +588,12 @@ pre {
   }
 
   .chat-header {
-    flex-direction: column;
-    gap: 16px;
-    margin-bottom: 16px;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   .chat-header h1 {
-    font-size: clamp(2rem, 13vw, 3.4rem);
+    font-size: clamp(1.15rem, 5.5vw, 1.5rem);
   }
 
   .health-panel {
@@ -508,7 +640,7 @@ pre {
   }
 
   .chat-header h1 {
-    font-size: 2.5rem;
+    font-size: 1.3rem;
   }
 
   .composer-actions {
@@ -529,6 +661,9 @@ pre {
    ============================================================ */
 
 .tool-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -655,9 +790,9 @@ pre {
 }
 
 .tool-card-icon {
-  font-size: 1.5rem;
+  display: inline-flex;
   margin-bottom: 8px;
-  display: block;
+  color: var(--payjack-lavender);
 }
 
 .tool-card-label {
@@ -1244,7 +1379,8 @@ pre {
 }
 
 .toast-icon {
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
 }
 
 @keyframes toast-in {
@@ -1377,21 +1513,42 @@ pre {
   flex-shrink: 0;
 }
 
-.sidebar-brand {
-  color: var(--text-soft);
-  font-size: 0.82rem;
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--payjack-lavender), var(--payjack-purple));
+  color: var(--text);
+  font-weight: 800;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.sidebar-brand-name {
+  color: var(--text);
+  font-size: 0.92rem;
   font-weight: 760;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
 }
 
 .sidebar-close-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 1.2rem;
-  padding: 2px 6px;
+  padding: 4px;
   border-radius: 6px;
   line-height: 1;
 }
@@ -1430,13 +1587,23 @@ pre {
 }
 
 .sidebar-search {
+  position: relative;
   margin: 0 16px 8px;
   flex-shrink: 0;
 }
 
+.sidebar-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
 .sidebar-search input {
   width: 100%;
-  padding: 8px 12px;
+  padding: 8px 12px 8px 30px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-muted);
@@ -1514,19 +1681,20 @@ pre {
 
 .sidebar-chat-delete {
   display: none;
+  align-items: center;
+  justify-content: center;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 3px;
   border-radius: 4px;
-  font-size: 0.8rem;
   flex-shrink: 0;
 }
 
 .sidebar-chat-item:hover .sidebar-chat-delete,
 .sidebar-chat-item:focus-within .sidebar-chat-delete {
-  display: block;
+  display: flex;
 }
 
 .sidebar-chat-delete:hover {
@@ -1539,6 +1707,42 @@ pre {
   text-align: center;
   padding: 28px 16px;
   margin: 0;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.84rem;
+  font-weight: 760;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.sidebar-nav-item:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.sidebar-nav-item:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .sidebar-footer {
@@ -1588,6 +1792,9 @@ pre {
 }
 
 .jump-to-latest {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   pointer-events: all;
   border: 1px solid var(--border-strong, var(--border));
   border-radius: 999px;

@@ -1,6 +1,9 @@
 "use client";
 
 import { forwardRef, type KeyboardEvent } from "react";
+import { SendHorizontal, Sparkles } from "lucide-react";
+
+const MAX_CHARS = 3000;
 
 type MessageInputProps = {
   value: string;
@@ -40,29 +43,42 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
           onKeyDown={handleKeyDown}
           placeholder="Ask about your transactions, spending, or Payjack features..."
           rows={3}
+          maxLength={MAX_CHARS}
           disabled={disabled}
           autoFocus
         />
         <div className="composer-actions">
-          <span className="composer-context">Secure read-only companion</span>
-          {onToolMenuOpen && (
-            <button
-              type="button"
-              className="tool-menu-trigger"
-              onClick={onToolMenuOpen}
-              disabled={disabled}
-              aria-label="Open Payjack Tools menu"
-              aria-haspopup="dialog"
-            >
-              ✦ Tools
-              <kbd className="tool-kbd-hint" aria-hidden="true">Alt T</kbd>
+          <div className="composer-meta">
+            <span className="composer-context">Secure read-only companion</span>
+            <span className="composer-char-count" aria-hidden="true">
+              {value.length} / {MAX_CHARS}
+            </span>
+          </div>
+          <div className="composer-buttons">
+            {onToolMenuOpen && (
+              <button
+                type="button"
+                className="tool-menu-trigger"
+                onClick={onToolMenuOpen}
+                disabled={disabled}
+                aria-label="Open Payjack Tools menu"
+                aria-haspopup="dialog"
+              >
+                <Sparkles size={14} aria-hidden="true" />
+                Tools
+                <kbd className="tool-kbd-hint" aria-hidden="true">Alt T</kbd>
+              </button>
+            )}
+            <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
+              <SendHorizontal size={14} aria-hidden="true" />
+              Send
             </button>
-          )}
-          <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
-            Send
-          </button>
+          </div>
         </div>
       </div>
+      <p className="composer-disclaimer">
+        Payjack AI can make mistakes. Verify important information before acting on it.
+      </p>
     </div>
   );
 });

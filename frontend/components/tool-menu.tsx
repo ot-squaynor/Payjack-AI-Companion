@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Info, PieChart, Receipt, Repeat, Search, Wallet } from "lucide-react";
 import type { ToolName } from "@/lib/types";
 
 type ToolMenuProps = {
@@ -14,37 +15,37 @@ export const TOOL_CATALOG = [
   {
     name: "transaction_lookup" as const,
     label: "Transaction Lookup",
-    icon: "🔍",
+    icon: Search,
     description: "Find transactions by date, merchant, or category",
   },
   {
     name: "spend_summary" as const,
     label: "Spend Summary",
-    icon: "📊",
+    icon: PieChart,
     description: "Summarise spending by category, merchant, or month",
   },
   {
     name: "recurring_detection" as const,
     label: "Recurring Payments",
-    icon: "🔁",
+    icon: Repeat,
     description: "Detect recurring charges and subscriptions",
   },
   {
     name: "balances" as const,
     label: "Account Balances",
-    icon: "💰",
+    icon: Wallet,
     description: "Current and available balance for your accounts",
   },
   {
     name: "status_explanation" as const,
     label: "Status Explanation",
-    icon: "ℹ️",
+    icon: Info,
     description: "Understand pending, posted, or failed transaction statuses",
   },
   {
     name: "fee_breakdown" as const,
     label: "Fee Breakdown",
-    icon: "🧾",
+    icon: Receipt,
     description: "Itemise fees charged within a date range",
   },
 ] as const;
@@ -204,7 +205,7 @@ function ToolForm({
         ← Back
       </button>
       <p className="tool-form-title">
-        {entry.icon} {entry.label}{" "}
+        <entry.icon size={16} aria-hidden="true" /> {entry.label}{" "}
         <span className="badge-readonly">read-only</span>
       </p>
 
@@ -633,7 +634,9 @@ export function ToolMenu({ isOpen, onClose, onInvoke, disabled }: ToolMenuProps)
                   disabled={disabled}
                   aria-label={`${tool.label}: ${tool.description}`}
                 >
-                  <span className="tool-card-icon" aria-hidden="true">{tool.icon}</span>
+                  <span className="tool-card-icon" aria-hidden="true">
+                    <tool.icon size={20} />
+                  </span>
                   <span className="tool-card-label">{tool.label}</span>
                   <span className="tool-card-desc">{tool.description}</span>
                 </button>
