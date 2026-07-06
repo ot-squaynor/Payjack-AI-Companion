@@ -2,7 +2,8 @@
 
 #Custom ignores for Payjack AI Companion
 KEY_CODE_COMMANDS.txt
-documentation/
+# documentation/
+memory/
 .tmp_bedrock_messages.json
 frontend/coverage/
 frontend/test-results/
