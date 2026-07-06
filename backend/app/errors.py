@@ -45,6 +45,11 @@ class ResourceNotReadyError(AppError):
     code = "resource_not_ready"
 
 
+class NotFoundError(AppError):
+    status_code = 404
+    code = "not_found"
+
+
 class ModelInvocationError(AppError):
     status_code = 502
     code = "model_invocation_error"

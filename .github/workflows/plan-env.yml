@@ -60,6 +60,8 @@ jobs:
       TF_VAR_bedrock_model_id: ${{ vars.BEDROCK_MODEL_ID != '' && vars.BEDROCK_MODEL_ID || 'amazon.nova-micro-v1:0' }}
       TF_VAR_bedrock_embedding_model_id: ${{ vars.BEDROCK_EMBEDDING_MODEL_ID != '' && vars.BEDROCK_EMBEDDING_MODEL_ID || 'amazon.titan-embed-text-v2:0' }}
       TF_VAR_cors_origins: ${{ vars.CORS_ORIGINS != '' && vars.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000' }}
+      TF_VAR_chat_history_enabled: ${{ vars.CHAT_HISTORY_ENABLED != '' && vars.CHAT_HISTORY_ENABLED || 'true' }}
+      TF_VAR_chat_history_archive_ttl_days: ${{ vars.CHAT_HISTORY_ARCHIVE_TTL_DAYS != '' && vars.CHAT_HISTORY_ARCHIVE_TTL_DAYS || '0' }}
 
     steps:
       - name: Checkout repository

@@ -217,6 +217,17 @@ variable "secret_arns" {
   default = {}
 }
 
+variable "chat_history_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "chat_history_archive_ttl_days" {
+  description = "Days after archiving before a chat session is auto-purged via DynamoDB TTL. 0 disables auto-purge."
+  type        = number
+  default     = 0
+}
+
 variable "extra_environment" {
   type    = map(string)
   default = {}

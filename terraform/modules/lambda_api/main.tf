@@ -2,6 +2,7 @@ locals {
   name                       = "${var.app_name}-${var.environment}"
   external_bucket_resources  = concat(var.external_bucket_arns, [for arn in var.external_bucket_arns : "${arn}/*"])
   managed_bucket_resources   = concat(var.managed_bucket_arns, [for arn in var.managed_bucket_arns : "${arn}/*"])
+  dynamodb_table_resources   = concat(var.dynamodb_table_arns, [for arn in var.dynamodb_table_arns : "${arn}/index/*"])
   secret_resources           = values(var.secret_arns)
   lambda_log_stream_resource = "${aws_cloudwatch_log_group.lambda.arn}:*"
 }
@@ -84,6 +85,24 @@ data "aws_iam_policy_document" "lambda" {
       "bedrock:InvokeModelWithResponseStream",
     ]
     resources = ["*"]
+  }
+
+  dynamic "statement" {
+    for_each = length(local.dynamodb_table_resources) > 0 ? [1] : []
+
+    content {
+      sid    = "ReadWriteChatHistoryTables"
+      effect = "Allow"
+      actions = [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:BatchWriteItem",
+      ]
+      resources = local.dynamodb_table_resources
+    }
   }
 
   dynamic "statement" {

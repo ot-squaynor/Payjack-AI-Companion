@@ -8,10 +8,12 @@ This is the core module that ties together all the different components of the a
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import logging
 import time
 import uuid
 
 from app.api.schemas import ChatRequest, ChatResponse
+from app.chat_history.store import ChatHistoryError, ChatHistoryStore
 from app.config import Settings
 from app.errors import PolicyViolationError
 from app.llm.autoregressive.bedrock_client import GenerationRequest
@@ -34,6 +36,9 @@ from app.security.pii_redaction import redact_value
 from app.security.policy_guard import evaluate_output_policy
 from app.telemetry.metrics import measure_duration
 from app.tools.registry import ToolInvocation, ToolRegistry
+
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_grounding_mode(
@@ -64,6 +69,7 @@ class WorkflowEngine:
     llm_client: object
     retriever: object | None = None # type is object to avoid circular import, should implement RetrieverProtocol
     session_memory: InMemorySessionMemoryStore = field(default_factory=InMemorySessionMemoryStore)
+    chat_history_store: ChatHistoryStore | None = None
 
     def _remember_response(
         self,
@@ -71,13 +77,14 @@ class WorkflowEngine:
         response: ChatResponse,
         user_message: str,
         tool_facts: list[ToolMemoryFact] | None = None,
+        auth_context: AuthContext | None = None,
     ) -> ChatResponse:
         """Records the exchange of a user message and assistant response into the session memory, including any tool facts and citations,
-        and returns the original response. This function takes the structured ChatResponse object, 
-        extracts the relevant information such as the session ID, request ID, route, and answer, 
-        and combines it with the original user message and any tool facts to create a comprehensive record of the interaction. 
-        The tool facts are stored in a structured format that includes the name of the tool, its arguments, results, 
-        and any artifact version information. Additionally, any citations included in the response are also recorded in the session memory. 
+        and returns the original response. This function takes the structured ChatResponse object,
+        extracts the relevant information such as the session ID, request ID, route, and answer,
+        and combines it with the original user message and any tool facts to create a comprehensive record of the interaction.
+        The tool facts are stored in a structured format that includes the name of the tool, its arguments, results,
+        and any artifact version information. Additionally, any citations included in the response are also recorded in the session memory.
         This allows for a complete history of the conversation to be maintained, which can be useful for future context retrieval and analysis."""
         self.session_memory.record_exchange(
             session_id=response.session_id,
@@ -88,6 +95,37 @@ class WorkflowEngine:
             tool_facts=tool_facts or [],
             citations=[citation.model_dump() for citation in response.citations],
         )
+
+        if self.chat_history_store is not None and auth_context is not None:
+            try:
+                self.chat_history_store.append_message(
+                    session_id=response.session_id,
+                    auth_context=auth_context,
+                    role="user",
+                    content=user_message,
+                )
+                self.chat_history_store.append_message(
+                    session_id=response.session_id,
+                    auth_context=auth_context,
+                    role="assistant",
+                    content=response.answer,
+                    request_id=response.request_id,
+                    route=response.route,
+                    tool_traces=[trace.model_dump() for trace in response.tool_traces],
+                    citations=[citation.model_dump() for citation in response.citations],
+                    refusal=response.refusal.model_dump() if response.refusal else None,
+                    debug={
+                        "grounding_mode": response.debug.get("grounding_mode"),
+                        "duration_ms": response.debug.get("duration_ms"),
+                    },
+                )
+            except ChatHistoryError:
+                logger.warning(
+                    "Failed to persist chat history for session %s; continuing without durable history.",
+                    response.session_id,
+                    exc_info=True,
+                )
+
         return response
 
     def handle_chat(
@@ -113,6 +151,18 @@ class WorkflowEngine:
         request_id = request.client_request_id or f"req-{uuid.uuid4().hex[:12]}"
         session_id = request.session_id or f"session-{uuid.uuid4().hex[:12]}"
         started_at = time.perf_counter()
+
+        if self.chat_history_store is not None:
+            try:
+                self.chat_history_store.get_or_create_session(
+                    session_id=session_id, auth_context=auth_context
+                )
+            except ChatHistoryError:
+                logger.warning(
+                    "Failed to get-or-create durable chat session %s; continuing without durable history.",
+                    session_id,
+                    exc_info=True,
+                )
 
         validate_chat_request(
             message=request.message,
@@ -158,6 +208,7 @@ class WorkflowEngine:
             return self._remember_response(
                 response=response,
                 user_message=request.message,
+                auth_context=auth_context,
             )
 
         route_decision = route_message(request.message)
@@ -204,6 +255,7 @@ class WorkflowEngine:
             return self._remember_response(
                 response=response,
                 user_message=request.message,
+                auth_context=auth_context,
             )
 
         if route_decision.tool_invocations:
@@ -255,6 +307,7 @@ class WorkflowEngine:
                 return self._remember_response(
                     response=response,
                     user_message=request.message,
+                    auth_context=auth_context,
                 )
 
         if retrieval_requested:
@@ -350,4 +403,5 @@ class WorkflowEngine:
             response=response,
             user_message=request.message,
             tool_facts=memory_tool_facts,
+            auth_context=auth_context,
         )

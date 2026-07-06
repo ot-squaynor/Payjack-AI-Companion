@@ -7,6 +7,7 @@ from __future__ import annotations
 ##BRICK 1: Imports and dependency container contract
 from dataclasses import dataclass
 
+from app.chat_history.store import ChatHistoryStore
 from app.config import Settings
 from app.llm.autoregressive.bedrock_client import build_generation_client
 from app.memory.session_memory import InMemorySessionMemoryStore
@@ -25,6 +26,7 @@ class AppDependencies:
     llm_client: object
     retriever: object | None
     session_memory: InMemorySessionMemoryStore
+    chat_history_store: ChatHistoryStore | None
     workflow_engine: WorkflowEngine
 
 
@@ -43,12 +45,26 @@ def build_dependencies(settings: Settings | None = None) -> AppDependencies:
     retriever = build_retriever(resolved_settings)
     llm_client = build_generation_client(resolved_settings)
     session_memory = InMemorySessionMemoryStore()
+
+    chat_history_store: ChatHistoryStore | None = None
+    if (
+        resolved_settings.chat_history_enabled
+        and resolved_settings.chat_sessions_table_name
+        and resolved_settings.chat_messages_table_name
+    ):
+        chat_history_store = ChatHistoryStore(
+            sessions_table_name=resolved_settings.chat_sessions_table_name,
+            messages_table_name=resolved_settings.chat_messages_table_name,
+            aws_region=resolved_settings.aws_region,
+        )
+
     workflow_engine = WorkflowEngine(
         settings=resolved_settings,
         tool_registry=tool_registry,
         llm_client=llm_client,
         retriever=retriever,
         session_memory=session_memory,
+        chat_history_store=chat_history_store,
     )
     return AppDependencies(
         settings=resolved_settings,
@@ -57,5 +73,6 @@ def build_dependencies(settings: Settings | None = None) -> AppDependencies:
         llm_client=llm_client,
         retriever=retriever,
         session_memory=session_memory,
+        chat_history_store=chat_history_store,
         workflow_engine=workflow_engine,
     )

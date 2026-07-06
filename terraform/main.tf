@@ -23,18 +23,22 @@ locals {
 
   app_environment = merge(
     {
-      APP_NAME                   = var.app_name
-      APP_ENV                    = var.environment
-      LOG_LEVEL                  = "INFO"
-      CORS_ORIGINS               = var.cors_origins
-      PROCESSED_STORE_MODE       = "s3"
-      PROCESSED_S3_PREFIX        = var.environment
-      MANAGED_PROCESSED_PREFIX   = var.environment
-      USE_MOCK_BEDROCK           = tostring(var.use_mock_bedrock)
-      USE_LOCAL_RAG              = tostring(var.use_local_rag)
-      ENABLE_DEBUG_TRACES        = tostring(var.enable_debug_traces)
-      BEDROCK_MODEL_ID           = var.bedrock_model_id
-      BEDROCK_EMBEDDING_MODEL_ID = var.bedrock_embedding_model_id
+      APP_NAME                      = var.app_name
+      APP_ENV                       = var.environment
+      LOG_LEVEL                     = "INFO"
+      CORS_ORIGINS                  = var.cors_origins
+      PROCESSED_STORE_MODE          = "s3"
+      PROCESSED_S3_PREFIX           = var.environment
+      MANAGED_PROCESSED_PREFIX      = var.environment
+      USE_MOCK_BEDROCK              = tostring(var.use_mock_bedrock)
+      USE_LOCAL_RAG                 = tostring(var.use_local_rag)
+      ENABLE_DEBUG_TRACES           = tostring(var.enable_debug_traces)
+      BEDROCK_MODEL_ID              = var.bedrock_model_id
+      BEDROCK_EMBEDDING_MODEL_ID    = var.bedrock_embedding_model_id
+      CHAT_HISTORY_ENABLED          = tostring(var.chat_history_enabled)
+      CHAT_HISTORY_ARCHIVE_TTL_DAYS = tostring(var.chat_history_archive_ttl_days)
+      CHAT_SESSIONS_TABLE_NAME      = module.dynamodb.chat_sessions_table_name
+      CHAT_MESSAGES_TABLE_NAME      = module.dynamodb.chat_messages_table_name
     },
     local.external_transactions_bucket_name == null ? {} : {
       EXTERNAL_TRANSACTIONS_BUCKET = local.external_transactions_bucket_name
@@ -63,6 +67,15 @@ module "s3" {
   external_products_bucket_name     = local.external_products_bucket_name
   external_metadata_bucket_name     = local.external_metadata_bucket_name
   tags                              = local.base_tags
+}
+
+module "dynamodb" {
+  source = "./modules/dynamodb"
+
+  app_name            = var.app_name
+  environment         = var.environment
+  archive_ttl_enabled = var.chat_history_archive_ttl_days > 0
+  tags                = local.base_tags
 }
 
 module "lambda_api" {
@@ -97,6 +110,10 @@ module "lambda_api" {
     module.s3.kb_source_bucket_arn,
     module.s3.kb_artifacts_bucket_arn,
   ])
+  dynamodb_table_arns = [
+    module.dynamodb.chat_sessions_table_arn,
+    module.dynamodb.chat_messages_table_arn,
+  ]
   secret_arns = var.secret_arns
   tags        = local.base_tags
 }

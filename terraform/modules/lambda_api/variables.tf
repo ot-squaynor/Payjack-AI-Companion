@@ -37,6 +37,11 @@ variable "managed_bucket_arns" {
   default = []
 }
 
+variable "dynamodb_table_arns" {
+  type    = list(string)
+  default = []
+}
+
 variable "secret_arns" {
   type    = map(string)
   default = {}

@@ -232,11 +232,65 @@ def processed_test_assets(
     }
 
 
-##BRICK 3: Test environment and API client fixtures
+##BRICK 3: Chat history DynamoDB fixtures
+CHAT_SESSIONS_TEST_TABLE = "test-chat-sessions"
+CHAT_MESSAGES_TEST_TABLE = "test-chat-messages"
+
+
+@pytest.fixture
+def dynamodb_chat_tables(monkeypatch: pytest.MonkeyPatch):
+    from moto import mock_aws
+
+    with mock_aws():
+        import boto3
+
+        client = boto3.client("dynamodb", region_name="eu-west-2")
+        client.create_table(
+            TableName=CHAT_SESSIONS_TEST_TABLE,
+            KeySchema=[{"AttributeName": "session_id", "KeyType": "HASH"}],
+            AttributeDefinitions=[
+                {"AttributeName": "session_id", "AttributeType": "S"},
+                {"AttributeName": "owner_key", "AttributeType": "S"},
+                {"AttributeName": "updated_at", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "gsi_owner_recency",
+                    "KeySchema": [
+                        {"AttributeName": "owner_key", "KeyType": "HASH"},
+                        {"AttributeName": "updated_at", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                }
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        client.create_table(
+            TableName=CHAT_MESSAGES_TEST_TABLE,
+            KeySchema=[
+                {"AttributeName": "session_id", "KeyType": "HASH"},
+                {"AttributeName": "sort_key", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "session_id", "AttributeType": "S"},
+                {"AttributeName": "sort_key", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
+        monkeypatch.setenv("CHAT_HISTORY_ENABLED", "true")
+        monkeypatch.setenv("CHAT_SESSIONS_TABLE_NAME", CHAT_SESSIONS_TEST_TABLE)
+        monkeypatch.setenv("CHAT_MESSAGES_TABLE_NAME", CHAT_MESSAGES_TEST_TABLE)
+        monkeypatch.setenv("AWS_REGION", "eu-west-2")
+        yield
+
+
+##BRICK 4: Test environment and API client fixtures
 @pytest.fixture
 def configured_test_env(
     monkeypatch: pytest.MonkeyPatch,
     processed_test_assets: dict[str, Path],
+    dynamodb_chat_tables: None,
 ) -> dict[str, Path]:
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("DEBUG", "false")
@@ -267,4 +321,14 @@ def auth_headers() -> dict[str, str]:
         "x-payjack-tenant-id": "tenant-001",
         "x-payjack-roles": "customer",
         "x-payjack-account-ids": "acc-001",
+    }
+
+
+@pytest.fixture
+def auth_headers_other_user() -> dict[str, str]:
+    return {
+        "x-payjack-user-id": "user-999",
+        "x-payjack-tenant-id": "tenant-002",
+        "x-payjack-roles": "customer",
+        "x-payjack-account-ids": "acc-999",
     }

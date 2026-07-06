@@ -81,6 +81,10 @@ class Settings:
     kb_chunks_path: Path
     kb_s3_bucket: str | None
     kb_s3_prefix: str
+    chat_history_enabled: bool
+    chat_sessions_table_name: str | None
+    chat_messages_table_name: str | None
+    chat_history_archive_ttl_days: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -134,4 +138,8 @@ class Settings:
             kb_chunks_path=kb_chunks_path,
             kb_s3_bucket=os.getenv("KB_S3_BUCKET"),
             kb_s3_prefix=os.getenv("KB_S3_PREFIX", "").strip("/"),
+            chat_history_enabled=_get_bool("CHAT_HISTORY_ENABLED", True),
+            chat_sessions_table_name=os.getenv("CHAT_SESSIONS_TABLE_NAME"),
+            chat_messages_table_name=os.getenv("CHAT_MESSAGES_TABLE_NAME"),
+            chat_history_archive_ttl_days=_get_int("CHAT_HISTORY_ARCHIVE_TTL_DAYS", 0),
         )
