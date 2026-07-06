@@ -36,7 +36,7 @@ flowchart TD
         D3["3. Assume AWS role via GitHub OIDC"]
         D4["4. Validate external and shared buckets"]
         D5["5. Build + push Dockerfile.lambda → ECR"]
-        D6["6. Terraform init + apply\nLambda · API Gateway · CloudFront · S3 frontend · IAM"]
+        D6["6. Terraform init + apply\nLambda · API Gateway · CloudFront · S3 frontend · DynamoDB chat tables · IAM"]
         D7["7. Publish processed datasets → managed S3 artifacts bucket"]
         D8["8. Sync frontend/out → private S3 frontend bucket"]
         D9["9. Invalidate CloudFront cache"]
@@ -52,6 +52,7 @@ flowchart TD
         LAM["Lambda\nFastAPI container"]
         BED["Bedrock\nFoundation model"]
         S3A["S3 Artifacts bucket\nProcessed datasets + KB chunks"]
+        DDBC["DynamoDB\nChat sessions + messages tables"]
         CW["CloudWatch\nLogs and metrics"]
     end
 
@@ -62,7 +63,7 @@ flowchart TD
     D10 --> CF
     CF -->|"/* static"| S3F
     CF -->|"/api/* proxy"| APIGW --> LAM
-    LAM --> BED & S3A & CW
+    LAM --> BED & S3A & DDBC & CW
 ```
 
 ---
@@ -99,6 +100,7 @@ Specify at workflow dispatch. Shared bootstrap resources and external raw-data b
 | External raw-data buckets (`EXTERNAL_*`) | Yes — never managed by Terraform |
 | Managed processed artifacts bucket | No — destroyed with environment |
 | Frontend S3 bucket | No — emptied then destroyed |
+| Chat history DynamoDB tables (sessions + messages) | No — destroyed with environment; not bootstrap-managed |
 
 ---
 

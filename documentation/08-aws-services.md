@@ -23,6 +23,7 @@ flowchart TD
         subgraph ENV_BUCKETS ["Environment-managed (destroyed with env)"]
             S3F["S3 Frontend bucket\nStatic Next.js export · OAC-protected"]
             S3A["S3 Artifacts bucket\nProcessed financial datasets"]
+            DDBC["DynamoDB\nChat sessions table + chat messages table"]
         end
         subgraph SHARED_BUCKETS ["Shared bootstrap (persists across teardown)"]
             S3KB["S3 KB source bucket\nRaw documentation files"]
@@ -41,7 +42,7 @@ flowchart TD
     end
 
     subgraph SECURITY ["🔒 Security"]
-        IAM["IAM\nLeast-privilege roles · OIDC GitHub Actions role\nLambda execution role · S3 access policies"]
+        IAM["IAM\nLeast-privilege roles · OIDC GitHub Actions role\nLambda execution role · S3 + DynamoDB access policies"]
     end
 
     subgraph MONITORING ["📊 Monitoring"]
@@ -54,9 +55,10 @@ flowchart TD
     LAM --> BED
     LAM --> S3A
     LAM --> S3KBA
+    LAM --> DDBC
     LAM --> CW
     ECR -->|Image pulled at deploy| LAM
-    IAM --> LAM & S3A & S3KBA & S3KB & BED
+    IAM --> LAM & S3A & S3KBA & S3KB & BED & DDBC
     BEDE -->|Used by scripts/embeddings_generate.py| S3KBA
     S3TF & DDB --> |Terraform remote state| S3TF
 ```
@@ -84,10 +86,11 @@ flowchart TD
 |---|---|---|
 | **S3 Frontend bucket** | Environment-managed | Hosts the static Next.js export. Private — OAC-protected. |
 | **S3 Artifacts bucket** | Environment-managed | Holds processed financial Parquet files loaded at Lambda cold start. |
+| **DynamoDB (chat history)** | Environment-managed | Two `PAY_PER_REQUEST` tables (`terraform/modules/dynamodb/`) backing `ChatHistoryStore`: a sessions table (with a `gsi_owner_recency` GSI for "my sessions, most recent first") and a messages table keyed by `session_id` + an ordered sort key. Read/written by Lambda on every `/chat` call and by the `/chat/sessions*` endpoints. Destroyed with the environment — not bootstrap-managed. |
 | **S3 KB source bucket** | Shared / persistent | Stores raw documentation files for the offline KB build pipeline. |
 | **S3 KB artifacts bucket** | Shared / persistent | Stores processed KB chunks and embeddings. Per-environment prefix. |
 | **S3 Terraform state bucket** | Shared / persistent | Remote state for Terraform runs. |
-| **DynamoDB** | Shared / persistent | Terraform state lock table. Prevents concurrent applies. |
+| **DynamoDB (Terraform lock)** | Shared / persistent | Terraform state lock table (`terraform/bootstrap/`). Prevents concurrent applies. Distinct from the chat-history tables above. |
 
 ### AI + ML
 
@@ -101,7 +104,7 @@ flowchart TD
 
 | Service | Role |
 |---|---|
-| **IAM** | Least-privilege roles for Lambda execution, S3 access, and Bedrock invocation. GitHub Actions uses OIDC role assumption — no long-lived keys. |
+| **IAM** | Least-privilege roles for Lambda execution, S3 access, Bedrock invocation, and DynamoDB read/write on the chat-history tables (including the GSI, via an `/index/*` resource suffix). Defined inline in `terraform/modules/lambda_api/main.tf` — not in the unwired `terraform/modules/iam/`. GitHub Actions uses OIDC role assumption — no long-lived keys. |
 
 ### Monitoring
 

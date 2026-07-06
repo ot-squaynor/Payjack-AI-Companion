@@ -11,7 +11,7 @@ mindmap
   root((Payjack AI Companion))
     backend
       app
-        api — HTTP layer, FastAPI routes incl. /tools/invoke
+        api — HTTP layer, FastAPI routes incl. /tools/invoke and /chat/sessions*
         orchestrator — Intent routing and workflow logic
         tools — Deterministic financial tool functions
         rag — Retrieval logic and chunk loading
@@ -24,6 +24,7 @@ mindmap
         data_pipeline — Ingestion, normalization, category mapping, recurring logic, quality checks
         security — Parameter validation, PII redaction, policy guard, audit logging, auth context, access control
         memory — Bounded in-process session memory for contextual follow-ups
+        chat_history — Durable DynamoDB-backed chat session + message persistence (ChatHistoryStore)
         telemetry — Logging, metrics, and cost tracking
       data
         raw — accounts, metadata, products, transactions exports
@@ -66,6 +67,7 @@ mindmap
         lambda_api — Lambda function, API Gateway HTTP API, inline IAM
         frontend_cloudfront — CloudFront and private S3 frontend
         s3 — External bucket references and managed bucket creation
+        dynamodb — Chat sessions + chat messages tables (PAY_PER_REQUEST, gsi_owner_recency GSI)
         iam, ecs, bedrock, kms, network — present, not wired from root main.tf, requires verification
     .github
       workflows
@@ -83,7 +85,7 @@ mindmap
 
 | Folder | Purpose |
 |---|---|
-| `app/api/` | FastAPI HTTP layer — `/health`, `/ready`, `/chat`, and `POST /tools/invoke` (direct tool invocation, bypasses the orchestrator and Bedrock) |
+| `app/api/` | FastAPI HTTP layer — `/health`, `/ready`, `/chat`, `POST /tools/invoke` (direct tool invocation, bypasses the orchestrator and Bedrock), and `/chat/sessions*` (session/message CRUD backed by `ChatHistoryStore`, `routes_chat_sessions.py` + `schemas_chat_sessions.py`) |
 | `app/orchestrator/` | Intent classification, route selection, context assembly, and workflow coordination |
 | `app/tools/` | Read-only deterministic financial tool functions (six tools — see [04 — Tool Routing](04-tool-routing.md)) |
 | `app/rag/` | Retrieval logic, chunk loading (text, CSV, and Excel sources), and metadata filtering |
@@ -95,6 +97,7 @@ mindmap
 | `app/data_pipeline/` | Offline ingestion, normalization, category mapping, recurring-pattern detection, and quality-check modules called by `scripts/dataset_transform.py` |
 | `app/security/` | Parameter validation, PII redaction, output policy guard, audit logging, header-based `AuthContext`, and account-scope access control |
 | `app/memory/` | Bounded, in-process session memory for short contextual follow-ups — not durable, lost on restart/cold start |
+| `app/chat_history/` | `ChatHistoryStore` (`store.py`) — durable, DynamoDB-backed session + message persistence, plus `contracts.py` record dataclasses. Separate from `app/memory/`; hooked into `WorkflowEngine._remember_response` |
 | `app/telemetry/` | Latency logging, token tracking, audit events, and cost monitoring |
 | `data/raw/` | Original financial exports, split into `accounts/`, `metadata/`, `products/`, `transactions/` |
 | `data/processed/` | Normalized Parquet outputs and pipeline sidecars (manifest, QC report, pipeline summary) |
@@ -139,7 +142,8 @@ mindmap
 | `modules/lambda_api/` | Lambda function and API Gateway HTTP API wiring; defines the Lambda execution role inline (see below) |
 | `modules/frontend_cloudfront/` | CloudFront distribution and private S3 frontend bucket with OAC |
 | `modules/s3/` | External bucket references and managed bucket creation |
-| `modules/iam/`, `modules/ecs/`, `modules/bedrock/`, `modules/kms/`, `modules/network/` | Present on disk but **not referenced by root `terraform/main.tf`** (which only wires `s3`, `lambda_api`, and `frontend`) — requires verification whether these are vestigial (e.g. from an earlier ECS-based design) or reserved for a future path |
+| `modules/dynamodb/` | Chat sessions + chat messages `PAY_PER_REQUEST` tables (`gsi_owner_recency` GSI on the sessions table; optional TTL for archived-session auto-purge). Wired into root `terraform/main.tf`; table ARNs are passed into `modules/lambda_api` for IAM policy generation |
+| `modules/iam/`, `modules/ecs/`, `modules/bedrock/`, `modules/kms/`, `modules/network/` | Present on disk but **not referenced by root `terraform/main.tf`** (which wires `s3`, `dynamodb`, `lambda_api`, and `frontend`) — requires verification whether these are vestigial (e.g. from an earlier ECS-based design) or reserved for a future path |
 
 ### CI/CD — `.github/workflows/`
 

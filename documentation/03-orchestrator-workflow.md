@@ -46,7 +46,9 @@ flowchart TD
         K["Response formatter\nStructure · tables · step-by-step guidance"]
         L["Audit logging\nRoute taken · tool calls · model call metadata"]
         M["Telemetry\nLatency · tokens · retrieval quality · errors"]
+        PERSIST["Chat history persistence\nDurable user+assistant record via ChatHistoryStore (DynamoDB)"]
         K --> L --> M
+        K --> PERSIST
     end
 
     A --> B
@@ -65,6 +67,7 @@ flowchart TD
     H --> I
     J --> K
     M --> P(["Structured response returned to caller"])
+    PERSIST --> P
 ```
 
 ---
@@ -81,6 +84,8 @@ The orchestrator owns two clearly separated concerns:
 The model never receives raw financial data. It receives only structured, pre-processed context assembled by the orchestrator.
 
 Session memory (`backend/app/memory/session_memory.py`) is intentionally narrow: it holds the last few turns and structured tool facts per `session_id`, in-process only, and is lost on Lambda cold start or restart. It is not durable chat history and never stores free-form assistant text as a source of truth for follow-ups — only structured facts from the last tool-backed response.
+
+Durable persistence is a separate, complementary concern handled by `ChatHistoryStore` (`backend/app/chat_history/store.py`, DynamoDB-backed). `WorkflowEngine.handle_chat` gets-or-creates a durable session row up front, then `_remember_response` — the single hook every route above calls before returning — writes the user message and assistant response (including tool traces, citations, and refusal metadata) to DynamoDB. A DynamoDB write failure is caught and logged, never surfaced to the caller, so a transient persistence issue cannot break a chat response. This durable record is what the `/chat/sessions*` endpoints read from; it is entirely independent of the in-process session-memory store described above.
 
 Request identity (`user_id`, `tenant_id`, `roles`, `account_ids`) is derived by `AuthContext.from_headers` (`backend/app/security/auth_context.py`) directly from client-supplied headers (`x-payjack-user-id`, `x-payjack-tenant-id`, `x-payjack-roles`, `x-payjack-account-ids`), with no independent verification — the orchestrator trusts whatever the calling application (the Payjack App) asserts. `access_control.py::resolve_account_scope` then restricts any requested `account_ids` to the set already present in that header.
 

@@ -40,6 +40,8 @@ flowchart TD
 ```
 
 > The frontend's tool-invoke UI can also reach the tools layer directly via `POST /tools/invoke`, skipping this entire request flow (no orchestrator, no Bedrock). See [04 — Tool Routing](04-tool-routing.md).
+>
+> A third, unrelated endpoint family — `POST/GET/PATCH/DELETE /chat/sessions*` (`backend/app/api/routes_chat_sessions.py`) — lets the frontend manage a user's persisted chat history (list, open, rename, archive, delete past conversations). These endpoints read and write `ChatHistoryStore` directly and never touch the orchestrator, session memory, or Bedrock.
 
 ---
 
@@ -58,6 +60,8 @@ flowchart TD
 > `USE_MOCK_BEDROCK=true` replaces all Bedrock calls with a local mock adapter. Applies equally to every LLM route.
 >
 > Session memory is an in-process, per-`session_id` store of recent turns and tool facts (`backend/app/memory/session_memory.py`) — it is not durable chat history and is lost on Lambda cold start or process restart. See [03 — Orchestrator Workflow](03-orchestrator-workflow.md) for how it fits into the orchestrator's internals.
+>
+> Separately, every turn is also persisted durably: `WorkflowEngine` writes the user message and assistant response to DynamoDB via `ChatHistoryStore` (`backend/app/chat_history/store.py`) after the response is formatted, regardless of which route above was taken. This durable record is what backs the `/chat/sessions*` endpoints (list/rename/archive/delete past conversations) and is unrelated to — and survives independently of — the ephemeral session-memory follow-up cache described above.
 
 ---
 

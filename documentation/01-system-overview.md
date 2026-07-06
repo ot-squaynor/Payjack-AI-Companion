@@ -18,6 +18,7 @@ flowchart TD
     BEDROCK("🤖 Bedrock\nFoundation model")
     S3("☁️ S3\nArtifacts + KB chunks")
     CF("🌍 CloudFront\nCDN")
+    OUTPUT("Output")
 
     USER --> APP --> FRONT
     CF --> FRONT
@@ -27,8 +28,9 @@ flowchart TD
     TOOLS --> BEDROCK
     RAG --> BEDROCK
     BEDROCK --> ORCH --> API --> LAMBDA --> GW --> FRONT
-    TOOLS --> S3
-    RAG --> S3
+    S3--> TOOLS
+    S3 --> RAG
+    BEDROCK --> OUTPUT
 ```
 
 ---
@@ -58,6 +60,7 @@ flowchart TD
 - **PCI-DSS aligned** — PII masking applied before any data reaches the model
 - **Observable** — every tool call and LLM invocation is audit-logged
 - **Dual entry points** — most traffic flows through the orchestrator (`/chat`), but the frontend's tool-invoke UI can call `POST /tools/invoke` directly for a raw, deterministic tool result with no LLM involved (see [04 — Tool Routing](04-tool-routing.md))
+- **Persisted chat history** — every exchange is durably recorded to DynamoDB via `ChatHistoryStore` (`backend/app/chat_history/`), independent of the request/response path shown above. A dedicated `/chat/sessions*` endpoint family lets the frontend list, rename, archive, and delete a user's own past conversations, scoped by the same header-derived identity used elsewhere. This is separate from the in-process session-memory follow-up cache described in [02 — Runtime Workflow](02-runtime-workflow.md) — see [08 — AWS Services](08-aws-services.md) for the storage layer.
 
 ---
 
