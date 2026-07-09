@@ -13,9 +13,9 @@ flowchart TD
     subgraph SOURCES ["📥 Raw Data Sources — external, never destroyed by Terraform"]
         S1["EXTERNAL_TRANSACTIONS_BUCKET\nTransaction exports"]
         S2["EXTERNAL_ACCOUNTS_BUCKET\nAccount data"]
-        S3["EXTERNAL_FEES_BUCKET\nFee and limit data"]
-        S4["EXTERNAL_PRODUCTS_BUCKET\nProduct metadata"]
-        S5["EXTERNAL_METADATA_BUCKET\nAdditional metadata"]
+        S3["(OPTIONAL)\nEXTERNAL_FEES_BUCKET\nFee and limit data"]
+        S4["(OPTIONAL)\nEXTERNAL_PRODUCTS_BUCKET\nProduct metadata"]
+        S5["(OPTIONAL)\nEXTERNAL_METADATA_BUCKET\nAdditional metadata"]
     end
 
     subgraph PIPELINE ["⚙️ Offline Pipeline — scripts/dataset_transform.py (CLI) orchestrating backend/app/data_pipeline/"]
