@@ -24,9 +24,9 @@ export function AppHeader({ onMobileMenuOpen }: AppHeaderProps) {
         </div>
       </div>
       <div className="chat-header-right">
-        <button type="button" className="header-icon-btn" aria-label="Help">
+        {/* <button type="button" className="header-icon-btn" aria-label="Help">
           <HelpCircle size={18} aria-hidden="true" />
-        </button>
+        </button> */}
       </div>
     </header>
   );

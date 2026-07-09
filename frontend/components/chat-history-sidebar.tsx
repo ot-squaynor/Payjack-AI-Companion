@@ -83,10 +83,10 @@ function ChatHistorySearch({
 function SidebarNav() {
   return (
     <nav className="sidebar-nav" aria-label="Support links">
-      <button type="button" className="sidebar-nav-item">
+      {/* <button type="button" className="sidebar-nav-item">
         <Settings size={16} aria-hidden="true" />
         Settings
-      </button>
+      </button> */}
       <button type="button" className="sidebar-nav-item">
         <HelpCircle size={16} aria-hidden="true" />
         Help
