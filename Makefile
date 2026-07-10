@@ -4,8 +4,11 @@ run:
 test:
 	pytest tests -q
 
+coverage:
+	python scripts/run_coverage.py
+
 transform:
-	python ../scripts/dataset_transform.py
+	python scripts/dataset_transform.py
 
 kb-build:
-	python ../scripts/kb_build.py
+	python scripts/kb_build.py

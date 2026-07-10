@@ -561,7 +561,13 @@ cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion
 
 python -m pytest tests -q
 python -m pytest tests --cov=app --cov=scripts --cov-report=term-missing -q
+python scripts\run_coverage.py
 ```
+
+If TeamCity is used for SonarQube analysis, run `python scripts/run_coverage.py`
+in the checkout root immediately before the SonarQube Runner step. The script
+fails if `coverage.xml` is not generated, which prevents Sonar from silently
+analyzing the build with zero imported Python coverage.
 
 ### Frontend Tests
 
