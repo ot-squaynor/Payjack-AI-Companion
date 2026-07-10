@@ -42,3 +42,16 @@ def test_settings_default_cors_origins_cover_localhost_and_loopback(monkeypatch)
     settings = Settings.from_env()
 
     assert settings.cors_origins == ("http://localhost:3000", "http://127.0.0.1:3000")
+
+
+def test_settings_resolve_expected_bucket_owner_from_specific_or_account_env(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("S3_EXPECTED_BUCKET_OWNER", raising=False)
+    monkeypatch.setenv("AWS_ACCOUNT_ID", "111122223333")
+
+    assert Settings.from_env().s3_expected_bucket_owner == "111122223333"
+
+    monkeypatch.setenv("S3_EXPECTED_BUCKET_OWNER", "444455556666")
+
+    assert Settings.from_env().s3_expected_bucket_owner == "444455556666"

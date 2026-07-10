@@ -1,3 +1,7 @@
+from io import BytesIO
+import json
+
+from app.rag import retriever as retriever_module
 from app.rag.retriever import KnowledgeRetriever
 
 
@@ -51,3 +55,42 @@ def test_retriever_rejects_irrelevant_context_and_falls_back() -> None:
     assert result.citations == ()
     assert result.accepted_count == 0
     assert result.fallback_reason in {"insufficient_term_overlap", "insufficient_title_overlap", "no_candidate_chunks"}
+
+
+class _FakeS3Client:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str]] = []
+
+    def get_object(self, **kwargs):
+        self.calls.append(kwargs)
+        payload = {
+            "doc_id": "kb-doc",
+            "title": "KB Doc",
+            "text": "Knowledge base content.",
+            "metadata": {"type": "policy"},
+        }
+        return {"Body": BytesIO((json.dumps(payload) + "\n").encode("utf-8"))}
+
+
+def test_load_s3_chunks_passes_expected_bucket_owner(monkeypatch) -> None:
+    fake_client = _FakeS3Client()
+    monkeypatch.setattr(
+        retriever_module.boto3,
+        "client",
+        lambda service_name: fake_client,
+    )
+
+    chunks = retriever_module._load_s3_chunks(
+        "kb-bucket",
+        "dev/processed_docs/chunks.jsonl",
+        expected_bucket_owner="123456789012",
+    )
+
+    assert fake_client.calls == [
+        {
+            "Bucket": "kb-bucket",
+            "Key": "dev/processed_docs/chunks.jsonl",
+            "ExpectedBucketOwner": "123456789012",
+        }
+    ]
+    assert chunks[0]["doc_id"] == "kb-doc"

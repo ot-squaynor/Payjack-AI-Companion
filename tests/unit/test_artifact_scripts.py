@@ -161,10 +161,16 @@ def test_dataset_transform_prepares_and_finalizes_transactions() -> None:
 
 class _FakeS3Client:
     def __init__(self) -> None:
-        self.uploads: list[tuple[str, str, str]] = []
+        self.uploads: list[tuple[str, str, str, dict[str, str] | None]] = []
 
-    def upload_file(self, filename: str, bucket: str, key: str) -> None:
-        self.uploads.append((Path(filename).name, bucket, key))
+    def upload_file(
+        self,
+        filename: str,
+        bucket: str,
+        key: str,
+        ExtraArgs: dict[str, str] | None = None,
+    ) -> None:
+        self.uploads.append((Path(filename).name, bucket, key, ExtraArgs))
 
 
 def test_dataset_transform_upload_outputs_adds_s3_keys(
@@ -210,6 +216,7 @@ def test_dataset_transform_upload_outputs_adds_s3_keys(
         manifest=manifest,
         output_bucket="processed-bucket",
         output_prefix="processed/local",
+        expected_bucket_owner="123456789012",
     )
 
     assert updated_manifest.artifacts["transactions"].s3_key == (
@@ -220,19 +227,43 @@ def test_dataset_transform_upload_outputs_adds_s3_keys(
             "transactions.parquet",
             "processed-bucket",
             "processed/local/transactions.parquet",
+            {"ExpectedBucketOwner": "123456789012"},
         ),
-        ("qc_report.json", "processed-bucket", "processed/local/qc_report.json"),
+        (
+            "qc_report.json",
+            "processed-bucket",
+            "processed/local/qc_report.json",
+            {"ExpectedBucketOwner": "123456789012"},
+        ),
         (
             "pipeline_summary.json",
             "processed-bucket",
             "processed/local/pipeline_summary.json",
+            {"ExpectedBucketOwner": "123456789012"},
         ),
         (
             PROCESSED_ARTIFACT_MANIFEST_FILENAME,
             "processed-bucket",
             f"processed/local/{PROCESSED_ARTIFACT_MANIFEST_FILENAME}",
+            {"ExpectedBucketOwner": "123456789012"},
         ),
     ]
+
+
+def test_dataset_transform_resolves_expected_bucket_owner_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("S3_EXPECTED_BUCKET_OWNER", raising=False)
+    monkeypatch.setenv("AWS_ACCOUNT_ID", "111122223333")
+
+    assert dataset_transform._resolve_expected_bucket_owner() == "111122223333"
+
+    monkeypatch.setenv("S3_EXPECTED_BUCKET_OWNER", "444455556666")
+
+    assert dataset_transform._resolve_expected_bucket_owner() == "444455556666"
+    assert dataset_transform._resolve_expected_bucket_owner("777788889999") == (
+        "777788889999"
+    )
 
 
 def test_kb_build_main_writes_chunks_and_manifest(
@@ -357,6 +388,11 @@ def test_kb_publish_upload_directory_uses_prefix_and_skips_directories(
     )
 
     assert fake_client.uploads == [
-        ("chunks.jsonl", "kb-bucket", "kb/processed_docs/chunks.jsonl"),
-        ("metadata.json", "kb-bucket", "kb/processed_docs/nested/metadata.json"),
+        ("chunks.jsonl", "kb-bucket", "kb/processed_docs/chunks.jsonl", None),
+        (
+            "metadata.json",
+            "kb-bucket",
+            "kb/processed_docs/nested/metadata.json",
+            None,
+        ),
     ]

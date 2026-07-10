@@ -27,6 +27,7 @@ locals {
       APP_ENV                       = var.environment
       LOG_LEVEL                     = "INFO"
       CORS_ORIGINS                  = var.cors_origins
+      S3_EXPECTED_BUCKET_OWNER      = data.aws_caller_identity.current.account_id
       PROCESSED_STORE_MODE          = "s3"
       PROCESSED_S3_PREFIX           = var.environment
       MANAGED_PROCESSED_PREFIX      = var.environment

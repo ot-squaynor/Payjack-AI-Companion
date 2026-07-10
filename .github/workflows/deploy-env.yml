@@ -131,6 +131,8 @@ jobs:
           if [[ -z "${IMAGE_TAG}" ]]; then
             IMAGE_TAG="${GITHUB_SHA::12}"
           fi
+          echo "AWS_ACCOUNT_ID=${ACCOUNT_ID}" >> "$GITHUB_ENV"
+          echo "S3_EXPECTED_BUCKET_OWNER=${ACCOUNT_ID}" >> "$GITHUB_ENV"
           echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
           echo "ECR_REPOSITORY_URL=${ECR_REPOSITORY_URL}" >> "$GITHUB_ENV"
           echo "TF_VAR_environment=${TARGET_ENVIRONMENT}" >> "$GITHUB_ENV"

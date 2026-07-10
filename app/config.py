@@ -37,6 +37,14 @@ def _get_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
+def _get_first_nonempty(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value and value.strip():
+            return value.strip()
+    return None
+
+
 def _resolve_runtime_path(raw_value: str, *, project_root: Path) -> Path:
     candidate = Path(raw_value)
     if candidate.is_absolute():
@@ -80,6 +88,7 @@ class Settings:
     kb_chunks_path: Path
     kb_s3_bucket: str | None
     kb_s3_prefix: str
+    s3_expected_bucket_owner: str | None
     chat_history_enabled: bool
     chat_sessions_table_name: str | None
     chat_messages_table_name: str | None
@@ -137,6 +146,10 @@ class Settings:
             kb_chunks_path=kb_chunks_path,
             kb_s3_bucket=os.getenv("KB_S3_BUCKET"),
             kb_s3_prefix=os.getenv("KB_S3_PREFIX", "").strip("/"),
+            s3_expected_bucket_owner=_get_first_nonempty(
+                "S3_EXPECTED_BUCKET_OWNER",
+                "AWS_ACCOUNT_ID",
+            ),
             chat_history_enabled=_get_bool("CHAT_HISTORY_ENABLED", True),
             chat_sessions_table_name=os.getenv("CHAT_SESSIONS_TABLE_NAME"),
             chat_messages_table_name=os.getenv("CHAT_MESSAGES_TABLE_NAME"),

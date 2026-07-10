@@ -170,10 +170,19 @@ def _load_local_chunks(path: Path) -> list[dict[str, Any]]:
     return chunks
 
 
-def _load_s3_chunks(bucket: str, key: str) -> list[dict[str, Any]]:
+def _load_s3_chunks(
+    bucket: str,
+    key: str,
+    *,
+    expected_bucket_owner: str,
+) -> list[dict[str, Any]]:
     client = boto3.client("s3")
     try:
-        response = client.get_object(Bucket=bucket, Key=key)
+        response = client.get_object(
+            Bucket=bucket,
+            Key=key,
+            ExpectedBucketOwner=expected_bucket_owner,
+        )
         payload = response["Body"].read().decode("utf-8")
     except (BotoCoreError, ClientError, KeyError) as exc:
         raise RuntimeError(f"Failed to load RAG chunks from s3://{bucket}/{key}: {exc}") from exc
@@ -193,9 +202,18 @@ def build_retriever(settings: Settings) -> KnowledgeRetriever | None:
         return KnowledgeRetriever(chunks)
 
     if settings.kb_s3_bucket:
+        if not settings.s3_expected_bucket_owner:
+            raise RuntimeError(
+                "S3_EXPECTED_BUCKET_OWNER or AWS_ACCOUNT_ID must be set "
+                "when loading RAG chunks from S3."
+            )
         prefix = settings.kb_s3_prefix.strip("/")
         key = f"{prefix}/chunks.jsonl" if prefix else "chunks.jsonl"
-        chunks = _load_s3_chunks(settings.kb_s3_bucket, key)
+        chunks = _load_s3_chunks(
+            settings.kb_s3_bucket,
+            key,
+            expected_bucket_owner=settings.s3_expected_bucket_owner,
+        )
         return KnowledgeRetriever(chunks)
 
     return None

@@ -9,6 +9,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -77,10 +78,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=str(PROJECT_ROOT / "data" / "processed"))
     parser.add_argument("--output-bucket")
     parser.add_argument("--output-prefix", default="")
+    parser.add_argument(
+        "--expected-bucket-owner",
+        default=None,
+        help=(
+            "AWS account ID expected to own S3 buckets. Defaults to "
+            "S3_EXPECTED_BUCKET_OWNER or AWS_ACCOUNT_ID."
+        ),
+    )
     parser.add_argument("--default-currency", default="GHS")
     parser.add_argument("--drop-invalid-rows", action="store_true")
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
+
+
+def _resolve_expected_bucket_owner(raw_value: str | None = None) -> str:
+    expected_owner = (
+        raw_value
+        or os.getenv("S3_EXPECTED_BUCKET_OWNER")
+        or os.getenv("AWS_ACCOUNT_ID")
+        or ""
+    ).strip()
+    if not expected_owner:
+        raise RuntimeError(
+            "S3_EXPECTED_BUCKET_OWNER or AWS_ACCOUNT_ID must be set when publishing to S3."
+        )
+    return expected_owner
 
 
 def _resolve_source_config(
@@ -201,16 +224,23 @@ def _upload_outputs_to_s3(
     manifest: ProcessedArtifactManifest,
     output_bucket: str,
     output_prefix: str,
+    expected_bucket_owner: str,
 ) -> ProcessedArtifactManifest:
     s3_client = boto3.client("s3")
     prefix = output_prefix.strip("/")
     manifest_payload = manifest_to_dict(manifest)
+    upload_extra_args = {"ExpectedBucketOwner": expected_bucket_owner}
 
     for artifact_name, artifact in manifest.artifacts.items():
         key = f"{prefix}/{artifact.filename}" if prefix else artifact.filename
         local_path = Path(artifact.local_path or output_dir / artifact.filename)
         try:
-            s3_client.upload_file(str(local_path), output_bucket, key)
+            s3_client.upload_file(
+                str(local_path),
+                output_bucket,
+                key,
+                ExtraArgs=upload_extra_args,
+            )
         except (BotoCoreError, ClientError) as exc:
             raise RuntimeError(
                 f"Failed to upload processed artifact '{artifact_name}' to s3://{output_bucket}/{key}: {exc}"
@@ -223,7 +253,12 @@ def _upload_outputs_to_s3(
             continue
         sidecar_key = f"{prefix}/{sidecar_name}" if prefix else sidecar_name
         try:
-            s3_client.upload_file(str(sidecar_path), output_bucket, sidecar_key)
+            s3_client.upload_file(
+                str(sidecar_path),
+                output_bucket,
+                sidecar_key,
+                ExtraArgs=upload_extra_args,
+            )
         except (BotoCoreError, ClientError) as exc:
             raise RuntimeError(
                 f"Failed to upload sidecar artifact to s3://{output_bucket}/{sidecar_key}: {exc}"
@@ -316,11 +351,13 @@ def main() -> None:
 
     if args.output_bucket:
         output_prefix = args.output_prefix.strip("/") or args.environment
+        expected_bucket_owner = _resolve_expected_bucket_owner(args.expected_bucket_owner)
         manifest = _upload_outputs_to_s3(
             output_dir=output_dir,
             manifest=manifest,
             output_bucket=args.output_bucket,
             output_prefix=output_prefix,
+            expected_bucket_owner=expected_bucket_owner,
         )
         manifest_path.write_text(
             json.dumps(manifest_to_dict(manifest), indent=2, sort_keys=True),
