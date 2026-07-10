@@ -91,9 +91,7 @@ jobs:
         run: python -m pip install -r requirements.dev.txt
 
       - name: Run backend tests
-        env:
-          PYTHONPATH: .
-        run: pytest tests -q --cov=app --cov=scripts --cov-report=xml:coverage.xml --cov-report=term-missing
+        run: python scripts/run_coverage.py
 
       - name: Install frontend dependencies
         working-directory: frontend

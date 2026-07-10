@@ -569,6 +569,19 @@ in the checkout root immediately before the SonarQube Runner step. The script
 fails if `coverage.xml` is not generated, which prevents Sonar from silently
 analyzing the build with zero imported Python coverage.
 
+For the Linux TeamCity agents used by the backend build, the coverage step can
+use the checked-in helper:
+
+```bash
+bash scripts/teamcity_coverage.sh
+```
+
+The SonarQube Runner step must run after that command in the same checkout
+directory and keep `sonar.python.coverage.reportPaths=coverage.xml`. If the
+scanner log says `No report was found ... coverage.xml`, Sonar did not receive a
+coverage file; rerun or fix the TeamCity command-line coverage step before
+debugging Sonar settings.
+
 ### Frontend Tests
 
 ```powershell

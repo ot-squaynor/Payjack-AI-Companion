@@ -74,17 +74,17 @@ htmlcov/
 .cache
 nosetests.xml
 #coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-.pytest_tmp/
-.pytest_tmp*/
-pytest_tmp*/
-.pytest_runtime_assets/
-pytest-cache-files-*/
-backend/tests/runtime_assets/
-cover/
+#*.cover
+# *.py,cover
+# .hypothesis/
+# .pytest_cache/
+# .pytest_tmp/
+# .pytest_tmp*/
+# pytest_tmp*/
+# .pytest_runtime_assets/
+# pytest-cache-files-*/
+# tests/runtime_assets/
+# cover/
 
 # Translations
 *.mo

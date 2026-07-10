@@ -1,0 +1,53 @@
+{
+  "artifacts": {
+    "accounts": {
+      "columns": [
+        "account_id",
+        "account_name",
+        "currency",
+        "current_balance",
+        "available_balance"
+      ],
+      "filename": "accounts.jsonl",
+      "local_path": "C:\\Users\\Nii Quaynor\\projects\\Payjack-AI-Companion\\.pytest_tmp\\test_chat_route_refuses_disall0\\processed\\accounts.jsonl",
+      "name": "accounts",
+      "row_count": 2,
+      "s3_key": null
+    },
+    "transactions": {
+      "columns": [
+        "transaction_id",
+        "account_id",
+        "timestamp",
+        "amount",
+        "currency",
+        "direction",
+        "merchant",
+        "category",
+        "subcategory",
+        "status",
+        "is_recurring",
+        "recurrence_cadence",
+        "recurrence_confidence"
+      ],
+      "filename": "transactions.jsonl",
+      "local_path": "C:\\Users\\Nii Quaynor\\projects\\Payjack-AI-Companion\\.pytest_tmp\\test_chat_route_refuses_disall0\\processed\\transactions.jsonl",
+      "name": "transactions",
+      "row_count": 3,
+      "s3_key": null
+    }
+  },
+  "build_id": "test-build-001",
+  "created_at": "2026-04-02T12:00:00Z",
+  "dataset_version": "test-dataset-2026-04-02",
+  "environment": "test",
+  "qc_summary": {
+    "error_count": 0,
+    "finding_count": 0,
+    "info_count": 0,
+    "passed": true,
+    "warning_count": 0
+  },
+  "schema_version": "2026-04-02.v1",
+  "source_mode": "local"
+}
