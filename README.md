@@ -219,22 +219,22 @@ The active repo path is **GitHub Actions + Terraform + Docker + Lambda/API Gatew
 
 | Capability | Current status | Implemented location | Notes |
 |------------|----------------|----------------------|-------|
-| Deterministic financial tools | Implemented | `backend/app/tools/` | Tool-first vertical slice is in place |
-| Structured data pipeline | Implemented | `backend/app/data_pipeline/`, `scripts/dataset_transform.py` | Produces processed artifacts, QC, and manifest sidecars |
-| Processed artifact repository layer | Implemented | `backend/app/repository/` | Loads local or S3-backed processed datasets |
-| Orchestration | Implemented | `backend/app/orchestrator/` | Routes between tool, RAG, clarify, and refusal paths |
-| Bedrock client abstraction | Implemented | `backend/app/llm/` | Supports mock mode for local testing |
-| RAG retrieval | Partially implemented | `backend/app/rag/`, `backend/kb/`, `scripts/kb_*.py` | Local/file path is ready; managed Bedrock KB remains optional |
-| Backend API | Implemented | `backend/app/api/`, `backend/app/main.py` | FastAPI `/health`, `/ready`, and `/chat` |
+| Deterministic financial tools | Implemented | `app/tools/` | Tool-first vertical slice is in place |
+| Structured data pipeline | Implemented | `app/data_pipeline/`, `scripts/dataset_transform.py` | Produces processed artifacts, QC, and manifest sidecars |
+| Processed artifact repository layer | Implemented | `app/repository/` | Loads local or S3-backed processed datasets |
+| Orchestration | Implemented | `app/orchestrator/` | Routes between tool, RAG, clarify, and refusal paths |
+| Bedrock client abstraction | Implemented | `app/llm/` | Supports mock mode for local testing |
+| RAG retrieval | Partially implemented | `app/rag/`, `kb/`, `scripts/kb_*.py` | Local/file path is ready; managed Bedrock KB remains optional |
+| Backend API | Implemented | `app/api/`, `app/main.py` | FastAPI `/health`, `/ready`, and `/chat` |
 | Next.js frontend | Implemented | `frontend/app/`, `frontend/components/`, `frontend/lib/` | Chat UI plus debug route |
 | Frontend tests | Implemented | `frontend/*.config.ts`, `frontend/e2e/`, `frontend/tests/` | Vitest + Playwright |
-| Backend tests | Implemented | `backend/tests/` | Unit, integration, rag, llm, red-team, tool tests |
-| Docker backend runtime | Implemented | `backend/Dockerfile`, `backend/Dockerfile.lambda` | Uvicorn for local/ECS compatibility; Lambda image for public deploys |
+| Backend tests | Implemented | `tests/` | Unit, integration, rag, llm, red-team, tool tests |
+| Docker backend runtime | Implemented | `Dockerfile`, `Dockerfile.lambda` | Uvicorn for local/ECS compatibility; Lambda image for public deploys |
 | Terraform bootstrap/env split | Implemented | `terraform/bootstrap/`, `terraform/` | Shared bootstrap plus environment stack |
 | GitHub Actions workflows | Implemented | `.github/workflows/` | Bootstrap, plan, deploy, destroy |
 | Shared KB buckets | Implemented | `terraform/bootstrap/main.tf` | Create-once shared KB source and KB artifacts buckets |
 | CloudFront | Implemented | `terraform/modules/frontend_cloudfront/` | Public frontend and `/api/*` routing |
-| Lambda | Implemented | `backend/app/lambda_handler.py`, `terraform/modules/lambda_api/` | FastAPI adapter plus API Gateway HTTP API |
+| Lambda | Implemented | `app/lambda_handler.py`, `terraform/modules/lambda_api/` | FastAPI adapter plus API Gateway HTTP API |
 
 ---
 
@@ -252,7 +252,7 @@ The repository is structured by **system responsibility**, not by technology.
 
 ### Folder Logic
 
-#### `/backend/app`
+#### `/app`
 Runtime application code deployed to Lambda for public environments, with the ASGI app still runnable locally through Uvicorn.
 
 Separated into:
@@ -266,7 +266,7 @@ Separated into:
 - `telemetry/` -> logging, metrics, and cost tracking
 - `tools/` -> deterministic financial logic
 
-#### `/backend/data`
+#### `/data`
 Structured financial datasets and runtime artifacts.
 
 - `raw/` -> source exports
@@ -274,7 +274,7 @@ Structured financial datasets and runtime artifacts.
 - `mock/` -> fixture-style data
 - `embeddings/` -> optional local vector persistence
 
-#### `/backend/kb`
+#### `/kb`
 Knowledge Base content and generated documentation artifacts.
 
 - `raw_docs/` -> source markdown/docs for RAG
@@ -314,7 +314,7 @@ payjack-ai-companion/
 |       |-- deploy-env.yml
 |       |-- destroy-env.yml
 |       `-- plan-env.yml
-|-- backend/
+|-- app/
 |   |-- app/
 |   |   |-- api/
 |   |   |-- data_pipeline/
@@ -469,12 +469,12 @@ The recommended local path is:
 
 ### Runtime Entrypoints and Config Sources
 
-- Local backend entrypoint: `backend/app/main.py`
-- Backend container entrypoint: `backend/Dockerfile`
+- Local backend entrypoint: `app/main.py`
+- Backend container entrypoint: `Dockerfile`
 - Frontend local entrypoint: `frontend/app/page.tsx`
 - Frontend debug route: `frontend/app/debug/page.tsx`
-- Local backend configuration template: `backend/.env.example`
-- Local backend secrets/config source: auto-loaded `backend/.env`
+- Local backend configuration template: `.env.example`
+- Local backend secrets/config source: auto-loaded `.env`
 - Shared infrastructure bootstrap source of truth: `terraform/bootstrap/main.tf`
 - Environment infrastructure source of truth: `terraform/main.tf`
 - Deployment automation source of truth: `.github/workflows/`
@@ -487,16 +487,16 @@ cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r backend\requirements.dev.txt
+python -m pip install -r requirements.dev.txt
 
-python scripts\dataset_transform.py --source-mode local --local-root backend\data\raw --output-dir backend\data\processed --environment local
+python scripts\dataset_transform.py --source-mode local --local-root data\raw --output-dir data\processed --environment local
 python scripts\kb_build.py
 python scripts\embeddings_generate.py
 
 $env:USE_MOCK_BEDROCK = "false"
 $env:BEDROCK_MODEL_ID = "anthropic.claude-3-5-haiku-20241022-v1:0"
 
-python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 Open a second PowerShell window for the frontend:
@@ -520,16 +520,16 @@ cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion
 py -3.12 -m venv .venv
 .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
-python -m pip install -r backend\requirements.dev.txt
+python -m pip install -r requirements.dev.txt
 
-python scripts\dataset_transform.py --source-mode local --local-root backend\data\raw --output-dir backend\data\processed --environment local
+python scripts\dataset_transform.py --source-mode local --local-root data\raw --output-dir data\processed --environment local
 python scripts\kb_build.py
 python scripts\embeddings_generate.py
 
 set USE_MOCK_BEDROCK=false
 set BEDROCK_MODEL_ID=anthropic.claude-3-5-haiku-20241022-v1:0
 
-python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 --reload
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 In a second CMD window:
@@ -545,7 +545,7 @@ set NEXT_PUBLIC_DEFAULT_ACCOUNT_IDS=acc-001
 npm run dev
 ```
 
-Local backend configuration is sourced from `backend/.env.example` and the auto-loaded local `backend/.env`.
+Local backend configuration is sourced from `.env.example` and the auto-loaded local `.env`.
 During `npm run dev`, the frontend defaults to `http://127.0.0.1:8000` for API calls. Set `NEXT_PUBLIC_API_BASE_URL` only when you need to point at a different backend.
 For local acceptance, set `USE_MOCK_BEDROCK=false`, set an explicit `BEDROCK_MODEL_ID`, and verify the responding model through `response.debug.model_id` in the frontend debug page or chat API response.
 
@@ -559,8 +559,8 @@ For local acceptance, set `USE_MOCK_BEDROCK=false`, set an explicit `BEDROCK_MOD
 cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion
 .\.venv\Scripts\Activate.ps1
 
-python -m pytest backend\tests\unit backend\tests\tool_tests backend\tests\integration backend\tests\rag_tests backend\tests\llm_tests backend\tests\red_team_tests -q
-python -m pytest backend\tests\unit backend\tests\tool_tests backend\tests\integration backend\tests\rag_tests backend\tests\llm_tests backend\tests\red_team_tests --cov=backend\app --cov-report=term-missing -q
+python -m pytest tests -q
+python -m pytest tests --cov=app --cov=scripts --cov-report=term-missing -q
 ```
 
 ### Frontend Tests
@@ -583,23 +583,23 @@ Test stack in the repository:
 
 ## 13. Docker
 
-The backend ships with a container definition in `backend/Dockerfile`.
+The backend ships with a container definition in `Dockerfile`.
 
 ### Build
 
 ```powershell
 cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion
-docker build -f backend/Dockerfile -t payjack-backend .
+docker build -f Dockerfile -t payjack-backend .
 ```
 
 ### Run
 
 ```powershell
 cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion
-docker run --rm -p 8000:8000 --env-file backend/.env payjack-backend
+docker run --rm -p 8000:8000 --env-file .env payjack-backend
 ```
 
-For local-only mode, processed artifacts should already exist under `backend/data/processed` before building and running the image. If the runtime is configured for S3-backed processed artifacts instead, local artifact generation is not required.
+For local-only mode, processed artifacts should already exist under `data/processed` before building and running the image. If the runtime is configured for S3-backed processed artifacts instead, local artifact generation is not required.
 
 ---
 

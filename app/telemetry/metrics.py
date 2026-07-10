@@ -1,4 +1,4 @@
-# \backend\app\telemetry\metrics.py
+# app/telemetry/metrics.py
 '''This module defines a DurationMetric dataclass and a measure_duration function to calculate the duration of an operation in milliseconds. The DurationMetric dataclass has two fields: name (a string representing the name of the metric) and milliseconds (a float representing the duration in milliseconds). The measure_duration function takes a name and a start_time (in seconds) as input, calculates the elapsed time since start_time, converts it to milliseconds, rounds it to three decimal places, and returns a DurationMetric instance with the provided name and calculated duration. This allows for easy tracking and reporting of operation durations in the application.
 Example usage:
 start_time = time.perf_counter()'''

@@ -1,4 +1,4 @@
-# backend/tests/conftest.py
+# tests/conftest.py
 # 2026-04-02
 """Purpose: Provide shared backend fixtures for local runtime, repository, and API tests."""
 
@@ -15,11 +15,10 @@ import pandas as pd
 import pytest
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-BACKEND_ROOT = PROJECT_ROOT / "backend"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-if str(BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.data_pipeline.processed_schema import (
     PROCESSED_ARTIFACT_SCHEMA_VERSION,
@@ -133,7 +132,7 @@ def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
 
 
 def _runtime_assets_root() -> Path:
-    root = BACKEND_ROOT / "tests" / "runtime_assets"
+    root = PROJECT_ROOT / ".pytest_runtime_assets" / "runtime_assets"
     root.mkdir(parents=True, exist_ok=True)
     return root
 

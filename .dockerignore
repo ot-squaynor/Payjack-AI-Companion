@@ -4,6 +4,7 @@
 .pytest_cache/
 .pytest_tmp/
 .pytest_tmp*/
+.pytest_runtime_assets/
 .venv/
 .vscode/
 __pycache__/
@@ -31,21 +32,22 @@ frontend/tsconfig.tsbuildinfo
 # Runtime image only needs backend application/runtime dependencies.
 documentation/
 frontend/
-memory/
+/memory/
 prototype/
 scripts/
 terraform/
-backend/tests/
-backend/.pytest_cache/
-backend/.pytest_tmp/
-backend/.pytest_tmp*/
+tests/
+.pytest_cache/
+.pytest_tmp/
+.pytest_tmp*/
+.pytest_runtime_assets/
 
 # Local/generated data and KB artifacts are published to S3 separately.
-backend/data/embeddings/
-backend/data/processed/
-backend/data/raw/
-backend/kb/metadata/
-backend/kb/processed_docs/
+data/embeddings/
+data/processed/
+data/raw/
+kb/metadata/
+kb/processed_docs/
 
 # Misc local artifacts
 *.log

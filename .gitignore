@@ -3,7 +3,7 @@
 #Custom ignores for Payjack AI Companion
 KEY_CODE_COMMANDS.txt
 # documentation/
-memory/
+/memory/
 .tmp_bedrock_messages.json
 frontend/coverage/
 frontend/test-results/
@@ -81,6 +81,7 @@ coverage.xml
 .pytest_tmp/
 .pytest_tmp*/
 pytest_tmp*/
+.pytest_runtime_assets/
 pytest-cache-files-*/
 backend/tests/runtime_assets/
 cover/

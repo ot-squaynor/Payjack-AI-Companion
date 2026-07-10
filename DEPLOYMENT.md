@@ -144,7 +144,7 @@ The deploy workflow performs these steps:
 6. Assume the AWS role via GitHub OIDC.
 7. Resolve ECR and Terraform runtime variables.
 8. Validate configured external/shared buckets.
-9. Build and push backend/Dockerfile.lambda to ECR.
+9. Build and push Dockerfile.lambda to ECR.
 10. Run Terraform init and apply in terraform/.
 11. Build and publish processed datasets to the managed S3 bucket.
 12. Optionally build and publish KB artifacts.
@@ -217,7 +217,7 @@ Keep real local deployment values out of Git. Use ignored files such as:
 terraform/local.dev.tfvars
 terraform/bootstrap/local.tfvars
 terraform/bootstrap/backend-shared.hcl
-backend/.env
+.env
 ```
 
 The checked-in `terraform/terraform.tfvars` is intentionally non-binding and
@@ -240,7 +240,7 @@ KB artifacts out of the backend image build context.
 The deployed backend image is built from:
 
 ```text
-backend/Dockerfile.lambda
+Dockerfile.lambda
 ```
 
 The deployed Lambda runtime reads processed datasets and KB chunks from S3, not

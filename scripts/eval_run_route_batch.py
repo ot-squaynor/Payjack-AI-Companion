@@ -15,7 +15,7 @@ from typing import Any
 from chat_eval_common import PROJECT_ROOT, request_chat, summarize_payload
 
 
-DEFAULT_BATCH_DIR = PROJECT_ROOT / "backend" / "tests" / "evaluation" / "route_batches"
+DEFAULT_BATCH_DIR = PROJECT_ROOT / "tests" / "evaluation" / "route_batches"
 PRESENCE_VALUES = {"empty", "non_empty", "any"}
 
 
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help=(
             "JSONL file or directory of JSONL files. May be passed more than once. "
-            "Defaults to backend/tests/evaluation/route_batches."
+            "Defaults to tests/evaluation/route_batches."
         ),
     )
     parser.add_argument("--api-base-url", default=None)

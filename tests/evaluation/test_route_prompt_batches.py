@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-from backend.app.orchestrator.intent_router import route_message
-from backend.app.rag.retriever import KnowledgeRetriever
-from backend.app.security.policy_guard import evaluate_input_policy
+from app.orchestrator.intent_router import route_message
+from app.rag.retriever import KnowledgeRetriever
+from app.security.policy_guard import evaluate_input_policy
 
 
 ROUTE_BATCH_DIR = Path(__file__).parent / "route_batches"

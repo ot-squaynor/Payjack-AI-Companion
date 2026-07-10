@@ -1,4 +1,4 @@
-# \backend\app\telemetry\logging.py
+# app/telemetry/logging.py
 from __future__ import annotations
 
 import logging

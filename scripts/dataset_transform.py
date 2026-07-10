@@ -20,17 +20,14 @@ import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-BACKEND_ROOT = PROJECT_ROOT / "backend"
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
-if str(BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT))
 
-from backend.app.data_pipeline import ingestion
-from backend.app.data_pipeline.category_mapping import map_categories, mapping_coverage_summary
-from backend.app.data_pipeline.normalization import NormalizationConfig, normalize_bundle
-from backend.app.data_pipeline.processed_schema import (
+from app.data_pipeline import ingestion
+from app.data_pipeline.category_mapping import map_categories, mapping_coverage_summary
+from app.data_pipeline.normalization import NormalizationConfig, normalize_bundle
+from app.data_pipeline.processed_schema import (
     PROCESSED_ARTIFACT_MANIFEST_FILENAME,
     PROCESSED_ARTIFACT_SCHEMA_VERSION,
     ProcessedArtifactManifest,
@@ -39,9 +36,9 @@ from backend.app.data_pipeline.processed_schema import (
     manifest_to_dict,
     write_manifest,
 )
-from backend.app.data_pipeline.quality_checks import quality_check_report_to_dict, run_quality_checks
-from backend.app.data_pipeline.recurring_logic import detect_recurring_transactions, recurrence_summary
-from backend.app.env import load_local_env
+from app.data_pipeline.quality_checks import quality_check_report_to_dict, run_quality_checks
+from app.data_pipeline.recurring_logic import detect_recurring_transactions, recurrence_summary
+from app.env import load_local_env
 
 
 load_local_env()
@@ -64,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--source-mode", choices=("local", "s3"), default="local")
     parser.add_argument("--environment", default="local")
-    parser.add_argument("--local-root", default=str(PROJECT_ROOT / "backend" / "data" / "raw"))
+    parser.add_argument("--local-root", default=str(PROJECT_ROOT / "data" / "raw"))
     parser.add_argument("--raw-bucket")
     parser.add_argument("--raw-prefix", default="")
     parser.add_argument("--transactions-bucket")
@@ -77,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--products-prefix", default="")
     parser.add_argument("--metadata-bucket")
     parser.add_argument("--metadata-prefix", default="")
-    parser.add_argument("--output-dir", default=str(PROJECT_ROOT / "backend" / "data" / "processed"))
+    parser.add_argument("--output-dir", default=str(PROJECT_ROOT / "data" / "processed"))
     parser.add_argument("--output-bucket")
     parser.add_argument("--output-prefix", default="")
     parser.add_argument("--default-currency", default="GHS")

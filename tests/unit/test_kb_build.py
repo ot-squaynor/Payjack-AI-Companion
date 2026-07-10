@@ -1,10 +1,11 @@
-# backend/tests/unit/test_kb_build.py
+# tests/unit/test_kb_build.py
 # 2026-06-24
 """Purpose: Unit tests for the KB build loader functions in app.rag.kb_builder."""
 
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import openpyxl
@@ -73,6 +74,14 @@ _REQUIRED_METADATA_FIELDS = {
     "source_path", "type", "file_type", "sheet_name",
     "row_start", "row_end", "columns", "chunk_type",
 }
+
+
+@pytest.fixture
+def tmp_path(request: pytest.FixtureRequest) -> Path:
+    safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "-", request.node.name)
+    path = Path(__file__).resolve().parents[2] / ".pytest_runtime_assets" / "kb_build" / safe_name
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _assert_chunk_schema(chunk: dict[str, Any]) -> None:

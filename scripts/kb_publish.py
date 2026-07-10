@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from backend.app.env import load_local_env
+from app.env import load_local_env
 
 
 load_local_env()
@@ -31,8 +31,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Upload processed KB artifacts to S3.")
     parser.add_argument("--bucket", required=True)
     parser.add_argument("--prefix", default="")
-    parser.add_argument("--processed-dir", default="backend/kb/processed_docs")
-    parser.add_argument("--metadata-dir", default="backend/kb/metadata")
+    parser.add_argument("--processed-dir", default="kb/processed_docs")
+    parser.add_argument("--metadata-dir", default="kb/metadata")
     parser.add_argument("--log-level", default="INFO")
     return parser.parse_args()
 

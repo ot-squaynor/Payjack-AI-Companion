@@ -18,8 +18,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from backend.app.env import load_local_env
-from backend.app.rag.kb_builder import SUPPORTED_SUFFIXES, load_file_chunks
+from app.env import load_local_env
+from app.rag.kb_builder import SUPPORTED_SUFFIXES, load_file_chunks
 
 
 load_local_env()
@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 ##BRICK 2: CLI parsing
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build chunked KB artifacts from local raw docs.")
-    parser.add_argument("--input-dir", default="backend/kb/raw_docs")
-    parser.add_argument("--output-dir", default="backend/kb/processed_docs")
-    parser.add_argument("--metadata-dir", default="backend/kb/metadata")
+    parser.add_argument("--input-dir", default="kb/raw_docs")
+    parser.add_argument("--output-dir", default="kb/processed_docs")
+    parser.add_argument("--metadata-dir", default="kb/metadata")
     parser.add_argument("--chunk-size", type=int, default=1000)
     parser.add_argument("--chunk-overlap", type=int, default=200)
     parser.add_argument("--log-level", default="INFO")

@@ -1,6 +1,6 @@
 # app/config.py
 # 2026-04-02
-"""Purpose: Resolve Payjack runtime settings from shell variables and the local backend `.env` file."""
+"""Purpose: Resolve Payjack runtime settings from shell variables and the local `.env` file."""
 
 from __future__ import annotations
 
@@ -37,17 +37,16 @@ def _get_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(part.strip() for part in value.split(",") if part.strip())
 
 
-def _resolve_runtime_path(raw_value: str, *, backend_root: Path) -> Path:
+def _resolve_runtime_path(raw_value: str, *, project_root: Path) -> Path:
     candidate = Path(raw_value)
     if candidate.is_absolute():
         return candidate
 
-    project_root = backend_root.parent
     path_parts = candidate.parts
-    if path_parts and path_parts[0].lower() == backend_root.name.lower():
-        return (project_root / candidate).resolve()
+    if path_parts and path_parts[0].lower() == "backend":
+        candidate = Path(*path_parts[1:]) if len(path_parts) > 1 else Path(".")
 
-    return (backend_root / candidate).resolve()
+    return (project_root / candidate).resolve()
 
 
 ##BRICK 3: Runtime settings contract
@@ -91,20 +90,20 @@ class Settings:
         """Build the application settings object from the effective environment."""
 
         load_local_env()
-        backend_root = Path(__file__).resolve().parents[1]
+        project_root = Path(__file__).resolve().parents[1]
         processed_local_root = _resolve_runtime_path(
             os.getenv(
                 "PROCESSED_LOCAL_ROOT",
-                str(backend_root / "data" / "processed"),
+                str(project_root / "data" / "processed"),
             ),
-            backend_root=backend_root,
+            project_root=project_root,
         )
         kb_chunks_path = _resolve_runtime_path(
             os.getenv(
                 "KB_CHUNKS_PATH",
-                str(backend_root / "kb" / "processed_docs" / "chunks.jsonl"),
+                str(project_root / "kb" / "processed_docs" / "chunks.jsonl"),
             ),
-            backend_root=backend_root,
+            project_root=project_root,
         )
         return cls(
             app_name=os.getenv("APP_NAME", "payjack-ai-companion"),

@@ -1,4 +1,4 @@
-# backend/tests/integration/test_tools_route.py
+# tests/integration/test_tools_route.py
 # 2026-06-24
 """Purpose: Integration tests for the POST /tools/invoke endpoint."""
 

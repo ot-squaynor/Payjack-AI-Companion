@@ -6,11 +6,11 @@ ENV PORT=8000
 
 WORKDIR /app
 
-COPY backend/requirements.runtime.txt /tmp/requirements.runtime.txt
+COPY requirements.runtime.txt /tmp/requirements.runtime.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /tmp/requirements.runtime.txt
 
-COPY backend /app
+COPY app /app/app
 
 EXPOSE 8000
 
