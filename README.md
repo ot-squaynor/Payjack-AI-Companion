@@ -560,7 +560,7 @@ cd C:\Users\Nii Quaynor\projects\Payjack-AI-Companion
 .\.venv\Scripts\Activate.ps1
 
 python -m pytest tests -q
-python -m pytest tests --cov=app --cov=scripts --cov-report=term-missing -q
+python -m pytest tests --cov --cov-report=xml:coverage.xml --cov-report=term-missing -q
 python scripts\run_coverage.py
 ```
 
@@ -581,6 +581,11 @@ directory and keep `sonar.python.coverage.reportPaths=coverage.xml`. If the
 scanner log says `No report was found ... coverage.xml`, Sonar did not receive a
 coverage file; rerun or fix the TeamCity command-line coverage step before
 debugging Sonar settings.
+
+The coverage report is configured through `.coveragerc` to emit repo-relative
+Cobertura paths. If Sonar reports invalid `<source>` paths such as a developer
+machine path (`C:\Users\...`), regenerate `coverage.xml` on the TeamCity agent
+instead of reusing a local Windows-generated file.
 
 ### Frontend Tests
 

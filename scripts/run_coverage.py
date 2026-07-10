@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
@@ -11,6 +12,7 @@ import xml.etree.ElementTree as ET
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COVERAGE_XML = PROJECT_ROOT / "coverage.xml"
+ABSOLUTE_SOURCE_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|/)")
 
 
 def _coverage_stats() -> tuple[int, int, float]:
@@ -19,6 +21,50 @@ def _coverage_stats() -> tuple[int, int, float]:
     lines_covered = int(root.attrib.get("lines-covered", "0"))
     line_rate = float(root.attrib.get("line-rate", "0"))
     return lines_valid, lines_covered, line_rate
+
+
+def _coverage_path_errors() -> list[str]:
+    root = ET.parse(COVERAGE_XML).getroot()
+    source_values = [
+        (source.text or "").strip()
+        for source in root.findall("./sources/source")
+        if (source.text or "").strip()
+    ]
+    errors: list[str] = []
+
+    for source_value in source_values:
+        if ABSOLUTE_SOURCE_RE.match(source_value):
+            errors.append(
+                (
+                    "coverage.xml contains an absolute <source> path. "
+                    f"Use repo-relative coverage paths instead: {source_value}"
+                )
+            )
+
+    source_roots = [
+        (PROJECT_ROOT / source_value).resolve()
+        for source_value in source_values
+        if not ABSOLUTE_SOURCE_RE.match(source_value)
+    ]
+    if not source_roots:
+        source_roots = [PROJECT_ROOT]
+
+    unresolved: list[str] = []
+    for class_node in root.findall(".//class"):
+        filename = class_node.attrib.get("filename", "").strip()
+        if not filename:
+            continue
+        if not any((source_root / filename).exists() for source_root in source_roots):
+            unresolved.append(filename)
+
+    for filename in sorted(set(unresolved))[:20]:
+        errors.append(f"coverage.xml contains an unresolved file path: {filename}")
+    if len(set(unresolved)) > 20:
+        errors.append(
+            f"coverage.xml contains {len(set(unresolved)) - 20} more unresolved file paths."
+        )
+
+    return errors
 
 
 def main() -> int:
@@ -41,8 +87,7 @@ def main() -> int:
         "-q",
         "-p",
         "no:cacheprovider",
-        "--cov=app",
-        "--cov=scripts",
+        "--cov",
         "--cov-report=xml:coverage.xml",
         "--cov-report=term-missing",
     ]
@@ -60,6 +105,12 @@ def main() -> int:
         lines_valid, lines_covered, line_rate = _coverage_stats()
     except ET.ParseError as exc:
         print(f"coverage.xml is not valid XML: {exc}", file=sys.stderr)
+        return 2
+
+    path_errors = _coverage_path_errors()
+    if path_errors:
+        for error in path_errors:
+            print(error, file=sys.stderr)
         return 2
 
     if lines_valid <= 0 or lines_covered <= 0 or line_rate <= 0:
