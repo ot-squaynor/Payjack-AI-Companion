@@ -250,3 +250,4 @@ terraform/bootstrap/backend*.hcl
 backend/data/processed/
 backend/kb/processed_docs/
 backend/kb/metadata/
+prototype/
