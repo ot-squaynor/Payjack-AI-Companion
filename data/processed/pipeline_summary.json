@@ -1,0 +1,21 @@
+{
+  "mapping_coverage": {
+    "category_alias_rows": 0,
+    "default_fallback_rows": 3917,
+    "rule_mapped_rows": 7426,
+    "source::default_fallback": 3917,
+    "source::rule:20": 7426,
+    "total_rows": 11343
+  },
+  "recurrence_summary": {
+    "cadence::irregular": 3012,
+    "cadence::monthly": 6,
+    "cadence::none": 8322,
+    "cadence::weekly": 3,
+    "confidence::low": 8322,
+    "confidence::medium": 3021,
+    "non_recurring_rows": 8322,
+    "recurring_rows": 3021,
+    "total_rows": 11343
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "build_id": "kb_20260624T133009Z",
+  "chunk_count": 502,
+  "created_at": "2026-06-24T13:30:09.401889+00:00",
+  "documents": [
+    "errors/errors.md",
+    "features/01_onboarding.xlsx",
+    "features/02_authentication.xlsx",
+    "features/03_send_money.xlsx",
+    "features/04_buy_airtime.xlsx",
+    "features/05_buy_data.xlsx",
+    "features/06_split_bill.xlsx",
+    "features/07_pay_bill.xlsx",
+    "features/08_funding_sources.xlsx",
+    "features/09_profile_and_account_settings.xlsx",
+    "features/10_security_pin_biometrics.xlsx",
+    "features/11_appearance_settings.xlsx",
+    "features/12_help_and_support.xlsx",
+    "features/13_about_and_legal.xlsx",
+    "features/14_beneficiaries.xlsx",
+    "features/15_notifications.xlsx",
+    "features/16_refer_and_earn.xlsx",
+    "features/17_transaction_history.xlsx",
+    "features/18_general_product_faqs.xlsx",
+    "features/features.md",
+    "fees/fees.md",
+    "help_center/help_center.md",
+    "limits/limits.md"
+  ]
+}

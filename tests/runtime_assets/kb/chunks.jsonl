@@ -1,0 +1,4 @@
+{"doc_id": "fees_policy", "chunk_id": 0, "title": "Fees Policy", "text": "Payjack fee explanations are available in the help center.", "metadata": {"type": "policy", "source_path": "policies/fees.md"}}
+{"doc_id": "jackinvest_overview", "chunk_id": 0, "title": "JackInvest Overview", "text": "JackInvest is a Payjack product area for investment education, product information, fees, and risk explanations.", "metadata": {"type": "product", "source_path": "products/jackinvest.md"}}
+{"doc_id": "payjack_limits", "chunk_id": 0, "title": "Payjack Transfer Limits", "text": "Payjack transfer limits and app usage guidance are documented in the help center.", "metadata": {"type": "policy", "source_path": "policies/limits.md"}}
+{"doc_id": "onboarding_help", "chunk_id": 0, "title": "Onboarding Help", "text": "Payjack onboarding guides explain verification, KYC, app setup, and common onboarding errors.", "metadata": {"type": "help", "source_path": "help/onboarding.md"}}
