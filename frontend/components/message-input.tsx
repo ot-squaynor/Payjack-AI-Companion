@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, type KeyboardEvent } from "react";
+import { forwardRef, useEffect, useRef, type KeyboardEvent } from "react";
 import { SendHorizontal, Sparkles } from "lucide-react";
 
 const MAX_CHARS = 3000;
@@ -23,6 +23,22 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
   },
   ref
 ) {
+  const localRef = useRef<HTMLTextAreaElement>(null);
+
+  const setRefs = (node: HTMLTextAreaElement | null) => {
+    localRef.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) ref.current = node;
+  };
+
+  // Auto-grow the textarea to fit its content, capped by the CSS max-height.
+  useEffect(() => {
+    const el = localRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -37,12 +53,12 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
     <div className="message-input">
       <div className={`composer-panel${disabled ? " is-loading" : ""}`}>
         <textarea
-          ref={ref}
+          ref={setRefs}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask about your transactions, spending, or Payjack features..."
-          rows={3}
+          rows={1}
           maxLength={MAX_CHARS}
           disabled={disabled}
           autoFocus
@@ -71,7 +87,7 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
             )}
             <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
               <SendHorizontal size={14} aria-hidden="true" />
-              Send
+              <span className="sr-only-mobile">Send</span>
             </button>
           </div>
         </div>
