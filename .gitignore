@@ -27,6 +27,8 @@ skills-lock.json
 .windsurf/
 .github/prompts/
 THEME_4.webp
+backend/
+frontend/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
