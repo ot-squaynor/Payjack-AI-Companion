@@ -80,9 +80,8 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
                 aria-label="Open Payjack Tools menu"
                 aria-haspopup="dialog"
               >
-                <Wrench size={14} aria-hidden="true" />
-                <span className="sr-only-mobile">Tools</span>
-                <kbd className="tool-kbd-hint" aria-hidden="true">Alt T</kbd>
+                <Wrench size={16} aria-hidden="true" />
+                <span className="sr-only">Tools</span>
               </button>
             )}
             <button
@@ -90,9 +89,10 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
               className="composer-send-btn"
               onClick={onSubmit}
               disabled={disabled || !value.trim()}
+              aria-label="Send"
             >
-              <SendHorizontal size={14} aria-hidden="true" />
-              <span className="sr-only-mobile">Send</span>
+              <SendHorizontal size={16} aria-hidden="true" />
+              <span className="sr-only">Send</span>
             </button>
           </div>
         </div>

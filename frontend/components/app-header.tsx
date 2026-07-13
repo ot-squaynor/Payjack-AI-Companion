@@ -20,7 +20,7 @@ export function AppHeader({ onMobileMenuOpen }: AppHeaderProps) {
         )}
         <div className="chat-title">
           <h1>Payjack AI Companion</h1>
-          <p>Understand transactions, spending, balances, fees, and Payjack features.</p>
+          {/* <p>Understand transactions, spending, balances, fees, and Payjack features.</p> */}
         </div>
       </div>
       <div className="chat-header-right">

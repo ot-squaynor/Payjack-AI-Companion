@@ -5,13 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import { AppHeader } from "@/components/app-header";
 
 describe("AppHeader", () => {
-  it("renders the standalone title and subtitle", () => {
+  it("renders the standalone title", () => {
     render(<AppHeader />);
 
     expect(screen.getByRole("heading", { name: "Payjack AI Companion" })).toBeInTheDocument();
-    expect(
-      screen.getByText("Understand transactions, spending, balances, fees, and Payjack features.")
-    ).toBeInTheDocument();
   });
 
   it("does not render the mobile menu button when no handler is passed", () => {

@@ -540,22 +540,26 @@ pre {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   flex: 0 0 auto;
-  min-width: 94px;
-  min-height: 44px;
+  width: 44px;
+  height: 44px;
   border: 0;
-  border-radius: 999px;
-  padding: 11px 18px;
+  border-radius: 50%;
+  padding: 0;
   background: var(--payjack-lavender);
   color: #1e1e1e;
-  font-weight: 850;
   cursor: pointer;
   box-shadow: 0 5px 10px rgb(110, 82, 127);
+  transition: filter 0.12s;
 }
 
-.sr-only-mobile {
-  display: inline;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .composer-send-btn:hover:not(:disabled) {
@@ -696,36 +700,6 @@ pre {
     width: 100%;
     justify-content: space-between;
   }
-
-  .composer-send-btn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    padding: 0;
-    border-radius: 50%;
-  }
-
-  .tool-menu-trigger {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    padding: 0;
-    justify-content: center;
-    border-radius: 50%;
-  }
-
-  .sr-only-mobile {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-
-  .tool-kbd-hint {
-    display: none;
-  }
 }
 
 /* ============================================================
@@ -735,24 +709,23 @@ pre {
 .tool-menu-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
   flex: 0 0 auto;
-  min-height: 44px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 8px 14px;
+  border-radius: 50%;
+  padding: 0;
   background: var(--surface);
   color: var(--text-soft);
-  font-size: 0.86rem;
-  font-weight: 760;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
 }
 
 .tool-menu-trigger:hover:not(:disabled) {
   background: var(--surface-strong);
   color: var(--text);
+  border-color: var(--payjack-lavender);
 }
 
 .tool-menu-trigger:focus-visible {
@@ -1571,23 +1544,6 @@ pre {
   display: flex;
   flex-direction: column;
   gap: 14px;
-}
-
-/* ── Keyboard shortcut hint badge ──────────────────────────── */
-
-.tool-kbd-hint {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 1px 5px;
-  background: var(--surface-muted);
-  color: var(--text-muted);
-  font-size: 0.68rem;
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-weight: 400;
-  margin-left: 6px;
-  line-height: 1.4;
 }
 
 /* ── Side-by-side date range fields ────────────────────────── */
