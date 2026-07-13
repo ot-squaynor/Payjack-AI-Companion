@@ -61,6 +61,29 @@ a {
   color: inherit;
 }
 
+/* ── App shell layout ───────────────────────────────────────── */
+
+.app-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 28px;
+  padding: calc(28px + env(safe-area-inset-top)) calc(28px + env(safe-area-inset-right))
+    28px calc(28px + env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 .page-shell {
   width: min(1120px, 100%);
   min-height: calc(100vh - 56px);
@@ -1302,61 +1325,34 @@ pre {
 /* ── Quick action chips ────────────────────────────────────── */
 
 .quick-prompts {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 4px 0 12px;
-  width: 100%;
 }
 
-@media (max-width: 480px) {
-  .quick-prompts {
-    grid-template-columns: 1fr;
-  }
-}
-
-.quick-prompt-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
+.quick-prompt-chip {
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 12px 14px;
+  border-radius: 999px;
+  padding: 8px 14px;
   background: var(--surface-muted);
   color: var(--text-soft);
   font-size: 0.84rem;
-  font-weight: 600;
-  text-align: left;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
+  text-align: left;
+  min-height: 44px;
 }
 
-.quick-prompt-card:hover:not(:disabled) {
+.quick-prompt-chip:hover:not(:disabled) {
   background: var(--surface);
   border-color: var(--payjack-lavender);
   color: var(--text);
 }
 
-.quick-prompt-card:focus-visible {
+.quick-prompt-chip:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
-}
-
-.quick-prompt-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: var(--surface-strong);
-  color: var(--payjack-lavender);
-}
-
-.quick-prompt-label {
-  font-size: 0.84rem;
 }
 
 /* ── New session button ────────────────────────────────────── */
@@ -1558,29 +1554,6 @@ pre {
   .tool-date-range-row {
     grid-template-columns: 1fr;
   }
-}
-
-/* ── App shell layout ───────────────────────────────────────── */
-
-.app-shell {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-}
-
-.main-content {
-  flex: 1;
-  overflow: hidden;
-  padding: 28px;
-  padding: calc(28px + env(safe-area-inset-top)) calc(28px + env(safe-area-inset-right))
-    28px calc(28px + env(safe-area-inset-left));
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
 }
 
 /* ── Chat history sidebar ───────────────────────────────────── */

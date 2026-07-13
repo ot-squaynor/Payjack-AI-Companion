@@ -1,14 +1,14 @@
-import { ArrowDown, Bot, PieChart, Receipt, Repeat, TriangleAlert, User, Wallet } from "lucide-react";
+import { ArrowDown, Bot, TriangleAlert, User } from "lucide-react";
 import type { ConversationMessage } from "@/lib/types";
 import { ResponseCard } from "@/components/response-card";
 import { ToolResultCard } from "@/components/tool-result-card";
 import { MessageActions } from "@/components/message-actions";
 
 const QUICK_PROMPTS = [
-  { id: "transactions", label: "Last transactions", prompt: "Show my last 10 transactions", icon: Receipt },
-  { id: "spend", label: "Spending summary", prompt: "Summarise my spending this month", icon: PieChart },
-  { id: "recurring", label: "Recurring payments", prompt: "What recurring payments do I have?", icon: Repeat },
-  { id: "fees", label: "Fee breakdown", prompt: "Break down my fees this month", icon: Wallet }
+  "Show my last 10 transactions",
+  "Summarise my spending this month",
+  "What recurring payments do I have?",
+  "Break down my fees this month"
 ] as const;
 
 type MessageListProps = {
@@ -100,17 +100,14 @@ export function MessageList({
         <div className="message-row assistant">
           <div className="message-stack">
             <div className="quick-prompts" aria-label="Suggested questions">
-              {QUICK_PROMPTS.map(({ id, label, prompt, icon: Icon }) => (
+              {QUICK_PROMPTS.map((prompt) => (
                 <button
-                  key={id}
+                  key={prompt}
                   type="button"
-                  className="quick-prompt-card"
+                  className="quick-prompt-chip"
                   onClick={() => onQuickPrompt(prompt)}
                 >
-                  <span className="quick-prompt-icon" aria-hidden="true">
-                    <Icon size={16} />
-                  </span>
-                  <span className="quick-prompt-label">{label}</span>
+                  {prompt}
                 </button>
               ))}
             </div>
