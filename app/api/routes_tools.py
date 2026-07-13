@@ -86,7 +86,37 @@ def _map_ui_args(tool: str, raw: dict[str, Any]) -> dict[str, Any]:
 router = APIRouter(tags=["tools"])
 
 
-@router.post("/invoke")
+@router.post(
+    "/invoke",
+    responses={
+        422: {
+            "description": "Tool arguments failed validation.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "code": "validation_error",
+                            "message": "Invalid tool argument.",
+                        }
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "Required processed data artifact is unavailable.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "code": "missing_artifact",
+                            "message": "Processed artifact is unavailable.",
+                        }
+                    }
+                }
+            },
+        },
+    },
+)
 async def invoke_tool(request: Request, payload: ToolInvokeRequest) -> ToolInvokeResponse:
     if payload.tool not in ALLOWED_TOOL_NAMES:
         raise to_http_exception(

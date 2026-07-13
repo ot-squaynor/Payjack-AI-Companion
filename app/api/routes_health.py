@@ -22,7 +22,24 @@ async def health(request: Request) -> dict[str, object]:
     }
 
 
-@router.get("/ready")
+@router.get(
+    "/ready",
+    responses={
+        503: {
+            "description": "Processed artifact store is not ready.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "status": "not_ready",
+                            "detail": "Processed artifacts are unavailable.",
+                        }
+                    }
+                }
+            },
+        }
+    },
+)
 async def ready(request: Request) -> dict[str, object]:
     dependencies = request.app.state.dependencies
     repository_health = dependencies.processed_store.healthcheck()
