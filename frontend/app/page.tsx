@@ -67,8 +67,8 @@ export default function HomePage() {
         onMobileClose={() => setSidebarOpen(false)}
       />
       <div className="main-content">
+        <AppHeader onMobileMenuOpen={() => setSidebarOpen(true)} />
         <main className="page-shell">
-          <AppHeader onMobileMenuOpen={() => setSidebarOpen(true)} />
           <ChatShell
             key={activeConvId ?? "default"}
             initialMessages={activeConv?.messages}

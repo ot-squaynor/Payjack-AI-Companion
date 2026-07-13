@@ -41,7 +41,7 @@ function EmptyState({ message }: { message: string }) {
 function TransactionTable({ records }: { records: TransactionRecord[] }) {
   if (records.length === 0) return <EmptyState message="No transactions found for the applied filters." />;
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div className="tool-result-table-wrap">
       <table className="tool-result-table">
         <thead>
           <tr>
@@ -118,7 +118,7 @@ function SpendSummaryResult({ payload }: { payload: SpendSummaryPayload }) {
         </p>
       </div>
       {payload.grouped_breakdown.length > 0 ? (
-        <div style={{ overflowX: "auto" }}>
+        <div className="tool-result-table-wrap">
           <table className="tool-result-table">
             <thead>
               <tr>
@@ -208,7 +208,7 @@ function StatusExplanationResult({ payload }: { payload: StatusExplanationPayloa
   const entries = Object.entries(payload.counts_by_status);
   if (entries.length === 0) return <EmptyState message="No status data found for the selected period." />;
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div className="tool-result-table-wrap">
       <table className="tool-result-table">
         <thead>
           <tr>
@@ -246,7 +246,7 @@ function FeeBreakdownResult({ payload }: { payload: FeeBreakdownPayload }) {
       {payload.records.length === 0 ? (
         <EmptyState message="No fees found for the selected period." />
       ) : (
-        <div style={{ overflowX: "auto" }}>
+        <div className="tool-result-table-wrap">
           <table className="tool-result-table">
             <thead>
               <tr>
