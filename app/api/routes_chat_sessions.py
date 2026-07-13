@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 ##BRICK 1: Imports and router definition
+from typing import Annotated
+
 from fastapi import APIRouter, Query, Request
 
 from app.api.schemas_chat_sessions import (
@@ -61,7 +63,7 @@ def _store(request: Request):
 
 
 ##BRICK 3: Session routes
-@router.post("/chat/sessions", response_model=SessionResponse)
+@router.post("/chat/sessions")
 async def create_session(request: Request, payload: SessionCreateRequest) -> SessionResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
@@ -81,12 +83,12 @@ async def create_session(request: Request, payload: SessionCreateRequest) -> Ses
     return _session_response(record)
 
 
-@router.get("/chat/sessions", response_model=SessionListResponse)
+@router.get("/chat/sessions")
 async def list_sessions(
     request: Request,
-    include_archived: bool = Query(default=False),
-    limit: int = Query(default=50, ge=1, le=100),
-    cursor: str | None = Query(default=None),
+    include_archived: Annotated[bool, Query()] = False,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[str | None, Query()] = None,
 ) -> SessionListResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
@@ -108,7 +110,7 @@ async def list_sessions(
     )
 
 
-@router.get("/chat/sessions/{session_id}", response_model=SessionResponse)
+@router.get("/chat/sessions/{session_id}")
 async def get_session(request: Request, session_id: str) -> SessionResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
@@ -124,7 +126,7 @@ async def get_session(request: Request, session_id: str) -> SessionResponse:
     return _session_response(record)
 
 
-@router.patch("/chat/sessions/{session_id}", response_model=SessionResponse)
+@router.patch("/chat/sessions/{session_id}")
 async def update_session(
     request: Request, session_id: str, payload: SessionUpdateRequest
 ) -> SessionResponse:
@@ -203,12 +205,12 @@ async def delete_session(request: Request, session_id: str) -> dict[str, object]
 
 
 ##BRICK 4: Message routes
-@router.get("/chat/sessions/{session_id}/messages", response_model=MessageListResponse)
+@router.get("/chat/sessions/{session_id}/messages")
 async def list_messages(
     request: Request,
     session_id: str,
-    limit: int = Query(default=200, ge=1, le=500),
-    cursor: str | None = Query(default=None),
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    cursor: Annotated[str | None, Query()] = None,
 ) -> MessageListResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
