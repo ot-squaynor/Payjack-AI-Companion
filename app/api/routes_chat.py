@@ -16,7 +16,7 @@ router = APIRouter(tags=["chat"])
 
 
 ##BRICK 2: Chat route
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat")
 async def chat(request: Request, payload: ChatRequest) -> ChatResponse:
     dependencies = request.app.state.dependencies
     auth_context = AuthContext.from_headers(request.headers)
