@@ -702,7 +702,6 @@ pre {
   }
 
   .sidebar-overlay {
-    display: block;
     position: fixed;
     inset: 0;
     z-index: 199;
@@ -710,18 +709,10 @@ pre {
     backdrop-filter: blur(4px);
   }
 
-  .sidebar-toggle-mobile {
-    display: flex;
-  }
-
   .main-content {
     padding: 16px;
     padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
       calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
-  }
-
-  .sidebar-close-mobile {
-    display: flex;
   }
 }
 
@@ -772,16 +763,6 @@ pre {
   .composer-buttons {
     width: 100%;
     justify-content: space-between;
-  }
-
-  .tool-card-desc {
-    font-size: 0.76rem;
-  }
-
-  .toast {
-    bottom: calc(14px + env(safe-area-inset-bottom));
-    right: calc(14px + env(safe-area-inset-right));
-    left: calc(14px + env(safe-area-inset-left));
   }
 }
 
@@ -945,6 +926,12 @@ pre {
   line-height: 1.45;
   display: block;
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .tool-card-desc {
+    font-size: 0.76rem;
+  }
 }
 
 /* Tool Form */
@@ -1558,6 +1545,14 @@ pre {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@media (max-width: 480px) {
+  .toast {
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    right: calc(14px + env(safe-area-inset-right));
+    left: calc(14px + env(safe-area-inset-left));
+  }
+}
+
 
 /* ── Tool form styled accordion (replaces bare <details>) ──── */
 
@@ -1622,7 +1617,6 @@ pre {
 /* ── Chat history sidebar ───────────────────────────────────── */
 
 .chat-sidebar {
-  width: 260px;
   flex-shrink: 0;
   height: 100%;
   display: flex;
@@ -1634,6 +1628,15 @@ pre {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
+}
+
+/* Desktop-only default width — kept as a min-width query (not an unconditional
+   base rule) so it can never win a cascade tie against the 1024px/760px tiers'
+   own width overrides regardless of source order. */
+@media (min-width: 1025px) {
+  .chat-sidebar {
+    width: 260px;
+  }
 }
 
 .sidebar-header {
@@ -1971,6 +1974,16 @@ pre {
 .jump-to-latest:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
+}
+
+@media (max-width: 760px) {
+  .sidebar-toggle-mobile {
+    display: flex;
+  }
+
+  .sidebar-overlay {
+    display: block;
+  }
 }
 
 @media (min-width: 761px) {
