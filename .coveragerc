@@ -1,8 +1,33 @@
 [run]
 source =
-    app
-    scripts
+    .
 relative_files = True
+omit =
+    .agent/*
+    .agents/*
+    .claude/*
+    .codebuddy/*
+    .codex/*
+    .continue/*
+    .cursor/*
+    .gemini/*
+    .github/*
+    .kiro/*
+    .opencode/*
+    .qoder/*
+    .roo/*
+    .trae/*
+    .venv/*
+    .windsurf/*
+    backend/*
+    documentation/*
+    frontend/*
+    graphify-out/*
+    ignore/*
+    outputs/*
+    prototype/*
+    terraform/*
+    tests/*
 
 [report]
 exclude_lines =

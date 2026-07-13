@@ -13,6 +13,23 @@ import xml.etree.ElementTree as ET
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 COVERAGE_XML = PROJECT_ROOT / "coverage.xml"
 ABSOLUTE_SOURCE_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|/)")
+SONAR_SOURCE_PREFIXES = ("app/", "scripts/")
+
+
+def _normalize_coverage_sources() -> None:
+    tree = ET.parse(COVERAGE_XML)
+    root = tree.getroot()
+    sources_node = root.find("./sources")
+    if sources_node is None:
+        sources_node = ET.SubElement(root, "sources")
+
+    for child in list(sources_node):
+        sources_node.remove(child)
+
+    source_node = ET.SubElement(sources_node, "source")
+    source_node.text = "."
+    ET.indent(tree, space="\t")
+    tree.write(COVERAGE_XML, encoding="utf-8", xml_declaration=True)
 
 
 def _coverage_stats() -> tuple[int, int, float]:
@@ -53,6 +70,9 @@ def _coverage_path_errors() -> list[str]:
     for class_node in root.findall(".//class"):
         filename = class_node.attrib.get("filename", "").strip()
         if not filename:
+            continue
+        if not filename.startswith(SONAR_SOURCE_PREFIXES):
+            unresolved.append(filename)
             continue
         if not any((source_root / filename).exists() for source_root in source_roots):
             unresolved.append(filename)
@@ -102,6 +122,7 @@ def main() -> int:
         return 2
 
     try:
+        _normalize_coverage_sources()
         lines_valid, lines_covered, line_rate = _coverage_stats()
     except ET.ParseError as exc:
         print(f"coverage.xml is not valid XML: {exc}", file=sys.stderr)
