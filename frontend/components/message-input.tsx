@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useRef, type KeyboardEvent } from "react";
-import { SendHorizontal, Sparkles } from "lucide-react";
+import { SendHorizontal, Wrench } from "lucide-react";
 
 const MAX_CHARS = 3000;
 
@@ -80,12 +80,17 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(f
                 aria-label="Open Payjack Tools menu"
                 aria-haspopup="dialog"
               >
-                <Sparkles size={14} aria-hidden="true" />
-                Tools
+                <Wrench size={14} aria-hidden="true" />
+                <span className="sr-only-mobile">Tools</span>
                 <kbd className="tool-kbd-hint" aria-hidden="true">Alt T</kbd>
               </button>
             )}
-            <button type="button" onClick={onSubmit} disabled={disabled || !value.trim()}>
+            <button
+              type="button"
+              className="composer-send-btn"
+              onClick={onSubmit}
+              disabled={disabled || !value.trim()}
+            >
               <SendHorizontal size={14} aria-hidden="true" />
               <span className="sr-only-mobile">Send</span>
             </button>

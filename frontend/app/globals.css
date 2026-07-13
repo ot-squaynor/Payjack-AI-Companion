@@ -536,7 +536,7 @@ pre {
   text-align: center;
 }
 
-.message-input button {
+.composer-send-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -558,16 +558,16 @@ pre {
   display: inline;
 }
 
-.message-input button:hover:not(:disabled) {
+.composer-send-btn:hover:not(:disabled) {
   filter: brightness(1.04);
 }
 
-.message-input button:focus-visible {
+.composer-send-btn:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
-.message-input button:disabled {
+.composer-send-btn:disabled {
   opacity: 0.52;
   cursor: not-allowed;
   box-shadow: none;
@@ -697,11 +697,20 @@ pre {
     justify-content: space-between;
   }
 
-  .message-input button {
+  .composer-send-btn {
     width: 44px;
     height: 44px;
     min-width: 44px;
     padding: 0;
+    border-radius: 50%;
+  }
+
+  .tool-menu-trigger {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    justify-content: center;
     border-radius: 50%;
   }
 
@@ -1598,6 +1607,8 @@ pre {
 /* ── App shell layout ───────────────────────────────────────── */
 
 .app-shell {
+  position: fixed;
+  inset: 0;
   display: flex;
   height: 100vh;
   height: 100dvh;
