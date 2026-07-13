@@ -430,6 +430,29 @@ def list_local_files(folder: Path, recursive: bool = False) -> List[Path]:
     return sorted(files, key=lambda p: str(p).lower())
 
 
+def _is_supported_s3_object_key(key: str) -> bool:
+    if key.endswith("/"):
+        return False
+
+    return Path(key).suffix.lower() in SUPPORTED_EXTS
+
+
+def _is_direct_s3_child(key: str, normalized_prefix: str) -> bool:
+    relative = key[len(normalized_prefix):].lstrip("/") if normalized_prefix else key
+    return "/" not in relative
+
+
+def _should_include_s3_key(
+    key: str,
+    normalized_prefix: str,
+    recursive: bool,
+) -> bool:
+    if not _is_supported_s3_object_key(key):
+        return False
+
+    return recursive or _is_direct_s3_child(key, normalized_prefix)
+
+
 def list_s3_keys(
     bucket: str,
     prefix: str,
@@ -472,21 +495,8 @@ def list_s3_keys(
             contents = page.get("Contents", [])
             for obj in contents:
                 key = obj["Key"]
-
-                # Skip pseudo-directory placeholders
-                if key.endswith("/"):
-                    continue
-
-                suffix = Path(key).suffix.lower()
-                if suffix not in SUPPORTED_EXTS:
-                    continue
-
-                if not recursive:
-                    relative = key[len(normalized_prefix):].lstrip("/") if normalized_prefix else key
-                    if "/" in relative:
-                        continue
-
-                keys.append(key)
+                if _should_include_s3_key(key, normalized_prefix, recursive):
+                    keys.append(key)
 
         return sorted(keys, key=lambda k: k.lower())
 
@@ -632,6 +642,75 @@ def read_s3_object_bytes(bucket: str, key: str, s3_client=None) -> bytes:
 #     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 ##BRICK 5: Shared parsing logic for loading raw bytes into DataFrames, which can be used by both local file ingestion and S3 object ingestion, to keep the core parsing logic consistent and testable regardless of the source.
+_JSON_RECORD_KEYS = ("data", "items", "records", "rows", "transactions", "accounts")
+
+
+def _decode_utf8_or_sig(file_bytes: bytes) -> str:
+    try:
+        return file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        return file_bytes.decode("utf-8-sig")
+
+
+def _load_csv_from_bytes(file_bytes: bytes) -> pd.DataFrame:
+    try:
+        return pd.read_csv(BytesIO(file_bytes), encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        return pd.read_csv(BytesIO(file_bytes), encoding="utf-8")
+
+
+def _load_excel_from_bytes(file_bytes: bytes) -> pd.DataFrame:
+    return pd.read_excel(BytesIO(file_bytes), sheet_name=0)
+
+
+def _dataframe_from_json_object(obj: dict) -> pd.DataFrame:
+    for key in _JSON_RECORD_KEYS:
+        if key in obj and isinstance(obj[key], list):
+            return pd.DataFrame(obj[key])
+
+    return pd.DataFrame([obj])
+
+
+def _dataframe_from_json_value(obj: object) -> pd.DataFrame:
+    if isinstance(obj, list):
+        return pd.DataFrame(obj)
+
+    if isinstance(obj, dict):
+        return _dataframe_from_json_object(obj)
+
+    raise IngestionError("Unsupported JSON structure")
+
+
+def _load_json_from_bytes(file_bytes: bytes) -> pd.DataFrame:
+    return _dataframe_from_json_value(json.loads(_decode_utf8_or_sig(file_bytes)))
+
+
+def _parse_jsonl_line(line: str, line_number: int) -> dict:
+    try:
+        return json.loads(line)
+    except json.JSONDecodeError as e:
+        raise IngestionError(f"Invalid JSON on line {line_number}: {e}") from e
+
+
+def _load_jsonl_from_bytes(file_bytes: bytes) -> pd.DataFrame:
+    rows = []
+    for i, line in enumerate(_decode_utf8_or_sig(file_bytes).splitlines(), start=1):
+        line = line.strip()
+        if line:
+            rows.append(_parse_jsonl_line(line, i))
+
+    return pd.DataFrame(rows)
+
+
+_TABLE_LOADERS = {
+    ".csv": _load_csv_from_bytes,
+    ".xlsx": _load_excel_from_bytes,
+    ".xls": _load_excel_from_bytes,
+    ".json": _load_json_from_bytes,
+    ".jsonl": _load_jsonl_from_bytes,
+}
+
+
 def load_table_from_bytes(file_bytes: bytes, suffix: str) -> pd.DataFrame:
     """
     Parse raw bytes into a pandas DataFrame based on file extension.
@@ -651,52 +730,7 @@ def load_table_from_bytes(file_bytes: bytes, suffix: str) -> pd.DataFrame:
         raise IngestionError(f"Unsupported file type '{ext}'. Supported: {sorted(SUPPORTED_EXTS)}")
 
     try:
-        if ext == ".csv":
-            try:
-                return pd.read_csv(BytesIO(file_bytes), encoding="utf-8-sig")
-            except UnicodeDecodeError:
-                return pd.read_csv(BytesIO(file_bytes), encoding="utf-8")
-
-        if ext in {".xlsx", ".xls"}:
-            return pd.read_excel(BytesIO(file_bytes), sheet_name=0)
-
-        if ext == ".json":
-            try:
-                obj = json.loads(file_bytes.decode("utf-8"))
-            except UnicodeDecodeError:
-                obj = json.loads(file_bytes.decode("utf-8-sig"))
-
-            if isinstance(obj, list):
-                return pd.DataFrame(obj)
-
-            if isinstance(obj, dict):
-                for key in ("data", "items", "records", "rows", "transactions", "accounts"):
-                    if key in obj and isinstance(obj[key], list):
-                        return pd.DataFrame(obj[key])
-
-                return pd.DataFrame([obj])
-
-            raise IngestionError("Unsupported JSON structure")
-
-        if ext == ".jsonl":
-            try:
-                text = file_bytes.decode("utf-8")
-            except UnicodeDecodeError:
-                text = file_bytes.decode("utf-8-sig")
-
-            rows = []
-            for i, line in enumerate(text.splitlines(), start=1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError as e:
-                    raise IngestionError(f"Invalid JSON on line {i}: {e}") from e
-
-            return pd.DataFrame(rows)
-
-        raise IngestionError(f"Unhandled file type '{ext}'")
+        return _TABLE_LOADERS[ext](file_bytes)
 
     except IngestionError:
         raise
@@ -840,6 +874,105 @@ def deduplicate_rows(
 
     return out
 
+
+def _limit_to_dataset_mode(
+    source_names: List[str] | List[Path],
+    spec: DatasetSpec,
+) -> List[str] | List[Path]:
+    if spec.multi_file:
+        return source_names
+
+    return source_names[:1]
+
+
+def _collect_local_source_items(
+    spec: DatasetSpec,
+    source_config: DataSourceConfig,
+) -> List[Tuple[str, bytes]]:
+    dataset_root = _resolve_local_dataset_root(source_config, spec.name)
+    file_paths = list_local_files(dataset_root, recursive=spec.recursive)
+
+    if not file_paths:
+        raise IngestionError(f"[{spec.name}] No supported local files found in {dataset_root}")
+
+    source_items: List[Tuple[str, bytes]] = []
+    for path in _limit_to_dataset_mode(file_paths, spec):
+        logger.info("Reading local dataset source for '%s': %s", spec.name, path)
+        source_items.append((str(path), read_local_file_bytes(path)))
+
+    return source_items
+
+
+def _collect_s3_source_items(
+    spec: DatasetSpec,
+    source_config: DataSourceConfig,
+    s3_client=None,
+) -> List[Tuple[str, bytes]]:
+    bucket = source_config.s3_bucket
+    if not bucket:
+        raise IngestionError(f"[{spec.name}] S3 mode requires a bucket name")
+
+    dataset_prefix = _resolve_s3_dataset_prefix(source_config, spec.name)
+    keys = list_s3_keys(
+        bucket=bucket,
+        prefix=dataset_prefix,
+        recursive=spec.recursive,
+        s3_client=s3_client,
+    )
+
+    if not keys:
+        raise IngestionError(f"[{spec.name}] No supported S3 objects found under s3://{bucket}/{dataset_prefix}")
+
+    source_items: List[Tuple[str, bytes]] = []
+    for key in _limit_to_dataset_mode(keys, spec):
+        logger.info("Reading S3 dataset source for '%s': s3://%s/%s", spec.name, bucket, key)
+        source_items.append(
+            (key, read_s3_object_bytes(bucket=bucket, key=key, s3_client=s3_client))
+        )
+
+    return source_items
+
+
+def _collect_source_items(
+    spec: DatasetSpec,
+    source_config: DataSourceConfig,
+    s3_client=None,
+) -> List[Tuple[str, bytes]]:
+    mode = source_config.mode.strip().lower()
+
+    if mode == "local":
+        return _collect_local_source_items(spec, source_config)
+
+    if mode == "s3":
+        return _collect_s3_source_items(spec, source_config, s3_client=s3_client)
+
+    raise IngestionError(f"[{spec.name}] Unsupported source mode '{source_config.mode}'")
+
+
+def _load_dataset_sources(
+    spec: DatasetSpec,
+    source_items: List[Tuple[str, bytes]],
+) -> pd.DataFrame:
+    if spec.multi_file:
+        return load_many_tables(source_items)
+
+    source_name, file_bytes = source_items[0]
+    suffix = Path(source_name).suffix.lower()
+    df = load_table_from_bytes(file_bytes, suffix=suffix)
+    df = df.copy()
+    df["_source_name"] = source_name
+    return df
+
+
+def _prepare_ingested_dataframe(df: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:
+    df = standardize_columns(df)
+    df = _adapt_payjack_transfer_export(df, spec)
+    df = _coerce_dates(df, spec.date_columns)
+    df = _coerce_numeric(df, spec.numeric_columns)
+    df = _coerce_strings(df, spec.string_columns)
+    validate_required_columns(df, spec.required_columns, dataset_name=spec.name)
+    return deduplicate_rows(df.dropna(how="all"), subset=spec.dedupe_key)
+
 ##BRICK 7: The main ingestion function that ties everything together, applying the configuration and specifications to load datasets from the specified source, standardize and validate them, and return a clean DataFrame for downstream processing.
 def ingest_dataset(
     spec: DatasetSpec,
@@ -871,79 +1004,15 @@ def ingest_dataset(
         Canonical ingested DataFrame for the dataset.
     """
     _validate_source_config(source_config)
-    mode = source_config.mode.strip().lower()
-
-    source_items: List[Tuple[str, bytes]] = []
-
-    if mode == "local":
-        dataset_root = _resolve_local_dataset_root(source_config, spec.name)
-        file_paths = list_local_files(dataset_root, recursive=spec.recursive)
-
-        if not file_paths:
-            raise IngestionError(f"[{spec.name}] No supported local files found in {dataset_root}")
-
-        if not spec.multi_file:
-            file_paths = file_paths[:1]
-
-        for path in file_paths:
-            logger.info("Reading local dataset source for '%s': %s", spec.name, path)
-            file_bytes = read_local_file_bytes(path)
-            source_items.append((str(path), file_bytes))
-
-    elif mode == "s3":
-        bucket = source_config.s3_bucket
-        if not bucket:
-            raise IngestionError(f"[{spec.name}] S3 mode requires a bucket name")
-
-        dataset_prefix = _resolve_s3_dataset_prefix(source_config, spec.name)
-        keys = list_s3_keys(
-            bucket=bucket,
-            prefix=dataset_prefix,
-            recursive=spec.recursive,
-            s3_client=s3_client,
-        )
-
-        if not keys:
-            raise IngestionError(f"[{spec.name}] No supported S3 objects found under s3://{bucket}/{dataset_prefix}")
-
-        if not spec.multi_file:
-            keys = keys[:1]
-
-        for key in keys:
-            logger.info("Reading S3 dataset source for '%s': s3://%s/%s", spec.name, bucket, key)
-            file_bytes = read_s3_object_bytes(bucket=bucket, key=key, s3_client=s3_client)
-            source_items.append((key, file_bytes))
-
-    else:
-        raise IngestionError(f"[{spec.name}] Unsupported source mode '{source_config.mode}'")
-
-    # Parse source(s)
-    if spec.multi_file:
-        df = load_many_tables(source_items)
-    else:
-        source_name, file_bytes = source_items[0]
-        suffix = Path(source_name).suffix.lower()
-        df = load_table_from_bytes(file_bytes, suffix=suffix)
-        df = df.copy()
-        df["_source_name"] = source_name
-
-    # Canonicalize schema before validation
-    df = standardize_columns(df)
-    df = _adapt_payjack_transfer_export(df, spec)
-
-    # Conservative type coercion
-    df = _coerce_dates(df, spec.date_columns)
-    df = _coerce_numeric(df, spec.numeric_columns)
-    df = _coerce_strings(df, spec.string_columns)
-
-    # Minimum schema enforcement
-    validate_required_columns(df, spec.required_columns, dataset_name=spec.name)
-
-    # Minimal cleanup
-    df = df.dropna(how="all")
-
-    # Dedupe if configured
-    df = deduplicate_rows(df, subset=spec.dedupe_key)
+    source_items = _collect_source_items(
+        spec=spec,
+        source_config=source_config,
+        s3_client=s3_client,
+    )
+    df = _prepare_ingested_dataframe(
+        _load_dataset_sources(spec=spec, source_items=source_items),
+        spec,
+    )
 
     logger.info(
         "Ingested dataset '%s' with %s rows and %s columns",

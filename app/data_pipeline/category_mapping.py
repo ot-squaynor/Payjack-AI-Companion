@@ -254,8 +254,7 @@ def build_default_category_mapping_config() -> CategoryMappingConfig:
     )
 
 ##BRICK 4: Validation functions for category mapping configuration and input dataframe contract
-def validate_category_mapping_config(config: CategoryMappingConfig) -> None:
-    """Validate that the category mapping configuration is internally consistent."""
+def _validate_default_mapping_values(config: CategoryMappingConfig) -> None:
     if not config.allowed_categories:
         raise CategoryMappingConfigError("allowed_categories must not be empty.")
 
@@ -275,48 +274,66 @@ def validate_category_mapping_config(config: CategoryMappingConfig) -> None:
             )
         )
 
+
+def _validate_rule_priority(
+    rule: CategoryMappingRule,
+    seen_priorities: set[int],
+) -> None:
+    if rule.priority in seen_priorities:
+        raise CategoryMappingConfigError(
+            f"Duplicate rule priority detected: {rule.priority}."
+        )
+    seen_priorities.add(rule.priority)
+
+
+def _validate_category_mapping_rule(
+    rule: CategoryMappingRule,
+    config: CategoryMappingConfig,
+) -> None:
+    if rule.match_type not in SUPPORTED_MATCH_TYPES:
+        raise CategoryMappingConfigError(
+            f"Unsupported match_type '{rule.match_type}' in rule priority {rule.priority}."
+        )
+
+    if rule.source_field not in REQUIRED_INPUT_COLUMNS:
+        raise CategoryMappingConfigError(
+            (
+                f"Unsupported source_field '{rule.source_field}' in "
+                f"rule priority {rule.priority}."
+            )
+        )
+
+    if rule.target_category not in config.allowed_categories:
+        raise CategoryMappingConfigError(
+            (
+                f"target_category '{rule.target_category}' in "
+                f"rule priority {rule.priority} is not allowed."
+            )
+        )
+
+    if rule.target_subcategory not in config.allowed_subcategories:
+        raise CategoryMappingConfigError(
+            (
+                f"target_subcategory '{rule.target_subcategory}' in "
+                f"rule priority {rule.priority} is not allowed."
+            )
+        )
+
+    if not rule.match_value.strip():
+        raise CategoryMappingConfigError(
+            f"Empty match_value in rule priority {rule.priority}."
+        )
+
+
+def validate_category_mapping_config(config: CategoryMappingConfig) -> None:
+    """Validate that the category mapping configuration is internally consistent."""
+    _validate_default_mapping_values(config)
+
     seen_priorities: set[int] = set()
 
     for rule in config.rules:
-        if rule.priority in seen_priorities:
-            raise CategoryMappingConfigError(
-                f"Duplicate rule priority detected: {rule.priority}."
-            )
-        seen_priorities.add(rule.priority)
-
-        if rule.match_type not in SUPPORTED_MATCH_TYPES:
-            raise CategoryMappingConfigError(
-                f"Unsupported match_type '{rule.match_type}' in rule priority {rule.priority}."
-            )
-
-        if rule.source_field not in REQUIRED_INPUT_COLUMNS:
-            raise CategoryMappingConfigError(
-                (
-                    f"Unsupported source_field '{rule.source_field}' in "
-                    f"rule priority {rule.priority}."
-                )
-            )
-
-        if rule.target_category not in config.allowed_categories:
-            raise CategoryMappingConfigError(
-                (
-                    f"target_category '{rule.target_category}' in "
-                    f"rule priority {rule.priority} is not allowed."
-                )
-            )
-
-        if rule.target_subcategory not in config.allowed_subcategories:
-            raise CategoryMappingConfigError(
-                (
-                    f"target_subcategory '{rule.target_subcategory}' in "
-                    f"rule priority {rule.priority} is not allowed."
-                )
-            )
-
-        if not rule.match_value.strip():
-            raise CategoryMappingConfigError(
-                f"Empty match_value in rule priority {rule.priority}."
-            )
+        _validate_rule_priority(rule, seen_priorities)
+        _validate_category_mapping_rule(rule, config)
 
 
 def validate_category_mapping_inputs(df: pd.DataFrame) -> None:
