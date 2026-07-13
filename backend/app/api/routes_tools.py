@@ -86,7 +86,7 @@ def _map_ui_args(tool: str, raw: dict[str, Any]) -> dict[str, Any]:
 router = APIRouter(tags=["tools"])
 
 
-@router.post("/invoke", response_model=ToolInvokeResponse)
+@router.post("/invoke")
 async def invoke_tool(request: Request, payload: ToolInvokeRequest) -> ToolInvokeResponse:
     if payload.tool not in ALLOWED_TOOL_NAMES:
         raise to_http_exception(

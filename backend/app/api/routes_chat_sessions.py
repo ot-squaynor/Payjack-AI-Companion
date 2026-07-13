@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 ##BRICK 1: Imports and router definition
+from typing import Annotated
+
 from fastapi import APIRouter, Query, Request
 
 from app.api.schemas_chat_sessions import (
@@ -84,9 +86,9 @@ async def create_session(request: Request, payload: SessionCreateRequest) -> Ses
 @router.get("/chat/sessions")
 async def list_sessions(
     request: Request,
-    include_archived: bool = Query(default=False),
-    limit: int = Query(default=50, ge=1, le=100),
-    cursor: str | None = Query(default=None),
+    include_archived: Annotated[bool, Query()] = False,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    cursor: Annotated[str | None, Query()] = None,
 ) -> SessionListResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
@@ -207,8 +209,8 @@ async def delete_session(request: Request, session_id: str) -> dict[str, object]
 async def list_messages(
     request: Request,
     session_id: str,
-    limit: int = Query(default=200, ge=1, le=500),
-    cursor: str | None = Query(default=None),
+    limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    cursor: Annotated[str | None, Query()] = None,
 ) -> MessageListResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
