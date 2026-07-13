@@ -331,6 +331,23 @@ def _derive_transaction_direction(amount: object) -> Optional[str]:
         return "credit"
     return None
 
+
+def _drop_rows_missing_required(
+    df: pd.DataFrame,
+    required: list[str],
+    dataset_label: str,
+) -> pd.DataFrame:
+    present_required = [c for c in required if c in df.columns]
+    if not present_required:
+        return df
+
+    before = len(df)
+    out = df.dropna(subset=present_required)
+    dropped = before - len(out)
+    if dropped:
+        logger.info("Dropped %s invalid %s rows during normalization", dropped, dataset_label)
+    return out
+
 ##BRICK 4: Define main normalization functions for transactions, accounts, fees/limits, products, and metadata, applying the helper functions and normalization rules defined above.
 def normalize_transactions(
     df: pd.DataFrame,
@@ -379,14 +396,11 @@ def normalize_transactions(
         out["direction"] = out["amount"].apply(_derive_transaction_direction)
 
     if config.drop_invalid_rows:
-        required = ["transaction_id", "account_id", "amount", "currency", "timestamp"]
-        present_required = [c for c in required if c in out.columns]
-        if present_required:
-            before = len(out)
-            out = out.dropna(subset=present_required)
-            dropped = before - len(out)
-            if dropped:
-                logger.info("Dropped %s invalid transaction rows during normalization", dropped)
+        out = _drop_rows_missing_required(
+            out,
+            ["transaction_id", "account_id", "amount", "currency", "timestamp"],
+            "transaction",
+        )
 
     return out
 
@@ -415,14 +429,7 @@ def normalize_accounts(
         )
 
     if config.drop_invalid_rows:
-        required = ["account_id", "account_name"]
-        present_required = [c for c in required if c in out.columns]
-        if present_required:
-            before = len(out)
-            out = out.dropna(subset=present_required)
-            dropped = before - len(out)
-            if dropped:
-                logger.info("Dropped %s invalid account rows during normalization", dropped)
+        out = _drop_rows_missing_required(out, ["account_id", "account_name"], "account")
 
     return out
 
@@ -452,14 +459,11 @@ def normalize_fees_and_limits(
         out["notes"] = out["notes"].apply(_clean_str)
 
     if config.drop_invalid_rows:
-        required = ["item_id", "item_type", "value"]
-        present_required = [c for c in required if c in out.columns]
-        if present_required:
-            before = len(out)
-            out = out.dropna(subset=present_required)
-            dropped = before - len(out)
-            if dropped:
-                logger.info("Dropped %s invalid fee/limit rows during normalization", dropped)
+        out = _drop_rows_missing_required(
+            out,
+            ["item_id", "item_type", "value"],
+            "fee/limit",
+        )
 
     return out
 
@@ -484,14 +488,7 @@ def normalize_products(
         out["product_type"] = out["product_type"].str.lower()
 
     if config.drop_invalid_rows:
-        required = ["product_id", "product_name"]
-        present_required = [c for c in required if c in out.columns]
-        if present_required:
-            before = len(out)
-            out = out.dropna(subset=present_required)
-            dropped = before - len(out)
-            if dropped:
-                logger.info("Dropped %s invalid product rows during normalization", dropped)
+        out = _drop_rows_missing_required(out, ["product_id", "product_name"], "product")
 
     return out
 
@@ -516,14 +513,7 @@ def normalize_metadata(
         out["source"] = out["source"].apply(_clean_str)
 
     if config.drop_invalid_rows:
-        required = ["key", "value"]
-        present_required = [c for c in required if c in out.columns]
-        if present_required:
-            before = len(out)
-            out = out.dropna(subset=present_required)
-            dropped = before - len(out)
-            if dropped:
-                logger.info("Dropped %s invalid metadata rows during normalization", dropped)
+        out = _drop_rows_missing_required(out, ["key", "value"], "metadata")
 
     return out
 ##BRICK 5: Define the main normalize_bundle function that applies the specific normalization functions to each dataset in the bundle, handling errors and returning the normalized bundle.
