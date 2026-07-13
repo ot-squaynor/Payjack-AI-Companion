@@ -38,6 +38,21 @@ _TOOL_INPUT_ERRORS = (
     FeeBreakdownInputError,
 )
 
+_DATE_FIELD_MAP = {
+    "date_from": "start_date",
+    "date_to": "end_date",
+}
+
+_TRANSACTION_LOOKUP_FIELD_MAP = {
+    "amount_min": "min_amount",
+    "amount_max": "max_amount",
+}
+
+_RECURRING_DETECTION_FIELD_MAP = {
+    "cadence": "cadences",
+    "confidence": "confidences",
+}
+
 
 def _validated_date(value: Any, field: str) -> str:
     # Raises app ValidationError (AppError → 422) on bad format.
@@ -50,35 +65,38 @@ def _validated_date(value: Any, field: str) -> str:
         )
 
 
+def _apply_date_aliases(args: dict[str, Any]) -> None:
+    for source, target in _DATE_FIELD_MAP.items():
+        if source in args:
+            args[target] = _validated_date(args.pop(source), source)
+
+
+def _apply_transaction_lookup_aliases(args: dict[str, Any]) -> None:
+    for source, target in _TRANSACTION_LOOKUP_FIELD_MAP.items():
+        if source in args:
+            args[target] = args.pop(source)
+
+
+def _apply_recurring_detection_aliases(args: dict[str, Any]) -> None:
+    for source, target in _RECURRING_DETECTION_FIELD_MAP.items():
+        value = args.pop(source, None)
+        if value:
+            args[target] = [value]
+
+
 def _map_ui_args(tool: str, raw: dict[str, Any]) -> dict[str, Any]:
     # Translate UI argument names to internal normalizer argument names.
     # Unknown keys pass through unchanged so callers using the internal schema
     # (e.g. start_date/end_date) continue to work without modification.
     args = dict(raw)
 
-    # date_from/date_to → start_date/end_date (all date-filtering tools)
-    if "date_from" in args:
-        args["start_date"] = _validated_date(args.pop("date_from"), "date_from")
-    if "date_to" in args:
-        args["end_date"] = _validated_date(args.pop("date_to"), "date_to")
+    _apply_date_aliases(args)
 
     if tool == "transaction_lookup":
-        # amount_min/amount_max → min_amount/max_amount
-        if "amount_min" in args:
-            args["min_amount"] = args.pop("amount_min")
-        if "amount_max" in args:
-            args["max_amount"] = args.pop("amount_max")
+        _apply_transaction_lookup_aliases(args)
 
     if tool == "recurring_detection":
-        # cadence/confidence (singular strings) → cadences/confidences (lists)
-        if "cadence" in args:
-            v = args.pop("cadence")
-            if v:
-                args["cadences"] = [v]
-        if "confidence" in args:
-            v = args.pop("confidence")
-            if v:
-                args["confidences"] = [v]
+        _apply_recurring_detection_aliases(args)
 
     return args
 
