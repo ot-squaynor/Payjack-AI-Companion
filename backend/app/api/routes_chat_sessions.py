@@ -61,7 +61,7 @@ def _store(request: Request):
 
 
 ##BRICK 3: Session routes
-@router.post("/chat/sessions", response_model=SessionResponse)
+@router.post("/chat/sessions")
 async def create_session(request: Request, payload: SessionCreateRequest) -> SessionResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
@@ -81,7 +81,7 @@ async def create_session(request: Request, payload: SessionCreateRequest) -> Ses
     return _session_response(record)
 
 
-@router.get("/chat/sessions", response_model=SessionListResponse)
+@router.get("/chat/sessions")
 async def list_sessions(
     request: Request,
     include_archived: bool = Query(default=False),
@@ -108,7 +108,7 @@ async def list_sessions(
     )
 
 
-@router.get("/chat/sessions/{session_id}", response_model=SessionResponse)
+@router.get("/chat/sessions/{session_id}")
 async def get_session(request: Request, session_id: str) -> SessionResponse:
     auth_context = AuthContext.from_headers(request.headers)
     try:
@@ -124,7 +124,7 @@ async def get_session(request: Request, session_id: str) -> SessionResponse:
     return _session_response(record)
 
 
-@router.patch("/chat/sessions/{session_id}", response_model=SessionResponse)
+@router.patch("/chat/sessions/{session_id}")
 async def update_session(
     request: Request, session_id: str, payload: SessionUpdateRequest
 ) -> SessionResponse:
@@ -203,7 +203,7 @@ async def delete_session(request: Request, session_id: str) -> dict[str, object]
 
 
 ##BRICK 4: Message routes
-@router.get("/chat/sessions/{session_id}/messages", response_model=MessageListResponse)
+@router.get("/chat/sessions/{session_id}/messages")
 async def list_messages(
     request: Request,
     session_id: str,
