@@ -169,6 +169,61 @@ def _blocked(
     )
 
 
+def _matches_any_pattern(lowered: str, patterns: tuple[re.Pattern[str], ...]) -> bool:
+    return any(pattern.search(lowered) for pattern in patterns)
+
+
+def _is_general_sensitive_policy_question(lowered: str) -> bool:
+    return (
+        _is_sensitive_policy_question(lowered)
+        and " me " not in f" {lowered} "
+        and " my " not in f" {lowered} "
+    )
+
+
+def _classify_fraud_request(
+    lowered: str,
+    *,
+    is_sensitive_policy_question: bool,
+) -> RefusalClassification | None:
+    if not _matches_any_pattern(lowered, FRAUD_PATTERNS):
+        return None
+    if is_sensitive_policy_question and not UNSAFE_FRAUD_INSTRUCTION_RE.search(lowered):
+        return RefusalClassification(allowed=True, confidence=0.78)
+    return _blocked(
+        intent="fraud_bypass_or_record_tampering",
+        confidence=0.95,
+        reason="The PayJack AI Companion cannot help bypass controls, fake details, or hide records.",
+    )
+
+
+def _classify_credit_decision_request(lowered: str) -> RefusalClassification | None:
+    if not _matches_any_pattern(lowered, CREDIT_DECISION_PATTERNS):
+        return None
+    if _is_general_sensitive_policy_question(lowered):
+        return RefusalClassification(allowed=True, confidence=0.78)
+    return _blocked(
+        intent="credit_approval_or_eligibility_decision",
+        confidence=0.93,
+        reason="The PayJack AI Companion cannot approve credit, guarantee eligibility, or alter credit decisions.",
+    )
+
+
+def _classify_execution_request(lowered: str) -> RefusalClassification | None:
+    execution_requested = (
+        STARTS_WITH_EXECUTION_RE.search(lowered)
+        or ASSISTANT_EXECUTION_RE.search(lowered)
+        or MONEY_MOVEMENT_CONTEXT_RE.search(lowered)
+    )
+    if _is_informational_request(lowered) or not execution_requested:
+        return None
+    return _blocked(
+        intent="money_movement_or_account_execution",
+        confidence=0.93,
+        reason="The PayJack AI Companion is read-only and cannot execute transactions or open products.",
+    )
+
+
 def classify_refusal_intent(message: str) -> RefusalClassification:
     """Classify the refusal intent of a user message by checking it against various patterns that indicate prohibited requests.
     The function normalizes the message and then checks for patterns related to prompt extraction, third-party data access, fraud, 
@@ -182,55 +237,40 @@ def classify_refusal_intent(message: str) -> RefusalClassification:
 
     is_sensitive_policy_question = _is_sensitive_policy_question(lowered)
 
-    if any(pattern.search(lowered) for pattern in PROMPT_EXTRACTION_PATTERNS):
+    if _matches_any_pattern(lowered, PROMPT_EXTRACTION_PATTERNS):
         return _blocked(
             intent="prompt_extraction",
             confidence=0.96,
             reason="The PayJack AI Companion cannot reveal or override its system instructions.",
         )
 
-    if any(pattern.search(lowered) for pattern in THIRD_PARTY_DATA_PATTERNS):
+    if _matches_any_pattern(lowered, THIRD_PARTY_DATA_PATTERNS):
         return _blocked(
             intent="third_party_private_data",
             confidence=0.94,
             reason="The PayJack AI Companion cannot access another person's private account data.",
         )
 
-    if any(pattern.search(lowered) for pattern in FRAUD_PATTERNS):
-        if is_sensitive_policy_question and not UNSAFE_FRAUD_INSTRUCTION_RE.search(lowered):
-            return RefusalClassification(allowed=True, confidence=0.78)
-        return _blocked(
-            intent="fraud_bypass_or_record_tampering",
-            confidence=0.95,
-            reason="The PayJack AI Companion cannot help bypass controls, fake details, or hide records.",
-        )
+    fraud_classification = _classify_fraud_request(
+        lowered,
+        is_sensitive_policy_question=is_sensitive_policy_question,
+    )
+    if fraud_classification is not None:
+        return fraud_classification
 
-    if any(pattern.search(lowered) for pattern in CREDIT_DECISION_PATTERNS):
-        if is_sensitive_policy_question and " me " not in f" {lowered} " and " my " not in f" {lowered} ":
-            return RefusalClassification(allowed=True, confidence=0.78)
-        return _blocked(
-            intent="credit_approval_or_eligibility_decision",
-            confidence=0.93,
-            reason="The PayJack AI Companion cannot approve credit, guarantee eligibility, or alter credit decisions.",
-        )
+    credit_classification = _classify_credit_decision_request(lowered)
+    if credit_classification is not None:
+        return credit_classification
 
-    if any(pattern.search(lowered) for pattern in FINANCIAL_ADVICE_PATTERNS):
+    if _matches_any_pattern(lowered, FINANCIAL_ADVICE_PATTERNS):
         return _blocked(
             intent="personalized_regulated_financial_advice",
             confidence=0.92,
             reason="The PayJack AI Companion cannot provide personalized regulated financial advice or guarantee returns.",
         )
 
-    if not _is_informational_request(lowered):
-        if (
-            STARTS_WITH_EXECUTION_RE.search(lowered)
-            or ASSISTANT_EXECUTION_RE.search(lowered)
-            or MONEY_MOVEMENT_CONTEXT_RE.search(lowered)
-        ):
-            return _blocked(
-                intent="money_movement_or_account_execution",
-                confidence=0.93,
-                reason="The PayJack AI Companion is read-only and cannot execute transactions or open products.",
-            )
+    execution_classification = _classify_execution_request(lowered)
+    if execution_classification is not None:
+        return execution_classification
 
     return RefusalClassification(allowed=True, confidence=0.75)

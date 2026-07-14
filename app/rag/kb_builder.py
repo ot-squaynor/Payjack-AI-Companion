@@ -19,11 +19,22 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+EXT_MD = ".md"
+EXT_TXT = ".txt"
+EXT_JSON = ".json"
+EXT_CSV = ".csv"
+EXT_XLS = ".xls"
+EXT_XLSX = ".xlsx"
+EXT_XLSM = ".xlsm"
+
+TEXT_SUFFIXES: frozenset[str] = frozenset({EXT_MD, EXT_TXT, EXT_JSON})
+EXCEL_SUFFIXES: frozenset[str] = frozenset({EXT_XLS, EXT_XLSX, EXT_XLSM})
 SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
-    {".md", ".txt", ".json", ".csv", ".xls", ".xlsx", ".xlsm"}
+    {*TEXT_SUFFIXES, EXT_CSV, *EXCEL_SUFFIXES}
 )
 
-_STRUCTURED_SUFFIXES: frozenset[str] = frozenset({".csv", ".xls", ".xlsx", ".xlsm"})
+_STRUCTURED_SUFFIXES: frozenset[str] = frozenset({EXT_CSV, *EXCEL_SUFFIXES})
+_OLE_MAGIC = b"\xd0\xcf\x11\xe0"
 
 
 # ---------------------------------------------------------------------------
@@ -52,6 +63,40 @@ def _sanitize_sheet_name(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _choose_text_chunk_end(
+    normalized: str,
+    *,
+    start: int,
+    target_end: int,
+    chunk_size: int,
+) -> int:
+    if target_end >= len(normalized):
+        return target_end
+
+    minimum_boundary = start + (chunk_size // 2)
+    boundaries = (
+        normalized.rfind("\n", start, target_end),
+        normalized.rfind(" ", start, target_end),
+    )
+    return next(
+        (boundary for boundary in boundaries if boundary > minimum_boundary),
+        target_end,
+    )
+
+
+def _next_text_chunk_start(
+    normalized: str,
+    *,
+    start: int,
+    end: int,
+    safe_overlap: int,
+) -> int:
+    next_start = max(end - safe_overlap, start + 1)
+    while next_start < len(normalized) and normalized[next_start].isspace():
+        next_start += 1
+    return next_start
+
+
 def _split_into_chunks(text: str, *, chunk_size: int, chunk_overlap: int) -> list[str]:
     """Split text into overlapping chunks respecting paragraph and word boundaries."""
     paragraphs = [p.strip() for p in text.splitlines() if p.strip()]
@@ -66,15 +111,12 @@ def _split_into_chunks(text: str, *, chunk_size: int, chunk_overlap: int) -> lis
 
     while start < length:
         target_end = min(length, start + chunk_size)
-        end = target_end
-
-        if target_end < length:
-            para_boundary = normalized.rfind("\n", start, target_end)
-            word_boundary = normalized.rfind(" ", start, target_end)
-            if para_boundary > start + (chunk_size // 2):
-                end = para_boundary
-            elif word_boundary > start + (chunk_size // 2):
-                end = word_boundary
+        end = _choose_text_chunk_end(
+            normalized,
+            start=start,
+            target_end=target_end,
+            chunk_size=chunk_size,
+        )
 
         chunk_text = normalized[start:end].strip()
         if chunk_text and (not chunks or chunks[-1] != chunk_text):
@@ -83,10 +125,12 @@ def _split_into_chunks(text: str, *, chunk_size: int, chunk_overlap: int) -> lis
         if end >= length:
             break
 
-        next_start = max(end - safe_overlap, start + 1)
-        while next_start < length and normalized[next_start].isspace():
-            next_start += 1
-        start = next_start
+        start = _next_text_chunk_start(
+            normalized,
+            start=start,
+            end=end,
+            safe_overlap=safe_overlap,
+        )
 
     return chunks
 
@@ -109,9 +153,9 @@ def load_markdown_chunks(
     """Load a Markdown, text, or JSON file and return text-based chunks."""
     ext = path.suffix.lower()
     try:
-        if ext in {".md", ".txt"}:
+        if ext in {EXT_MD, EXT_TXT}:
             raw = path.read_text(encoding="utf-8", errors="replace")
-        elif ext == ".json":
+        elif ext == EXT_JSON:
             payload = json.loads(path.read_text(encoding="utf-8"))
             raw = json.dumps(payload, indent=2, sort_keys=True)
         else:
@@ -252,6 +296,232 @@ def load_csv_chunks(
 # ---------------------------------------------------------------------------
 
 
+def _read_excel_header(path: Path) -> bytes:
+    try:
+        return path.read_bytes()[:4]
+    except OSError:
+        return b""
+
+
+def _excel_engine_for_suffix(ext: str) -> str:
+    return "xlrd" if ext == EXT_XLS else "openpyxl"
+
+
+def _read_excel_sheets(path: Path, relative_path: str) -> dict[str, Any] | None:
+    try:
+        import pandas as pd  # noqa: PLC0415
+    except ImportError as exc:
+        raise RuntimeError(
+            "pandas is required for Excel support. Install it with: pip install pandas openpyxl"
+        ) from exc
+
+    ext = path.suffix.lower()
+    if _read_excel_header(path) == _OLE_MAGIC and ext != EXT_XLS:
+        logger.warning(
+            "Skipping %s: file appears to be in old .xls (OLE) format despite %s extension. "
+            "Re-save the file as .xlsx, or rename it to .xls and install xlrd.",
+            relative_path,
+            ext,
+        )
+        return None
+
+    try:
+        return pd.read_excel(
+            path,
+            sheet_name=None,
+            dtype=str,
+            keep_default_na=False,
+            engine=_excel_engine_for_suffix(ext),
+        )
+    except ImportError as exc:
+        raise RuntimeError(
+            f"Missing Excel engine for {path.suffix}: {exc}. "
+            "Install openpyxl (for .xlsx/.xlsm) or xlrd (for .xls)."
+        ) from exc
+    except Exception as exc:
+        logger.warning("Corrupt or unreadable Excel file %s: %s", relative_path, exc)
+        return None
+
+
+def _spreadsheet_chunk_metadata(
+    *,
+    relative_path: str,
+    category: str,
+    file_type: str,
+    sheet_name: str | None,
+    row_start: int | None,
+    row_end: int | None,
+    columns: list[str],
+    chunk_type: str,
+) -> dict[str, Any]:
+    return {
+        "source_path": relative_path,
+        "type": category,
+        "file_type": file_type,
+        "sheet_name": sheet_name,
+        "row_start": row_start,
+        "row_end": row_end,
+        "columns": columns,
+        "chunk_type": chunk_type,
+    }
+
+
+def _excel_summary_chunk(
+    *,
+    path: Path,
+    sheet_name: str,
+    sheet_doc_id: str,
+    sheet_title: str,
+    relative_path: str,
+    category: str,
+    valid_headers: list[str],
+    row_count: int,
+    chunk_id: int,
+) -> dict[str, Any]:
+    summary_text = (
+        f"Source: {path.name}\n"
+        f"Sheet: {sheet_name}\n"
+        f"File type: {path.suffix.lstrip('.')}\n"
+        f"Columns: {', '.join(valid_headers)}\n"
+        f"Row count: {row_count}"
+    )
+    return {
+        "doc_id": f"{sheet_doc_id}_summary",
+        "chunk_id": chunk_id,
+        "title": sheet_title,
+        "text": summary_text,
+        "metadata": _spreadsheet_chunk_metadata(
+            relative_path=relative_path,
+            category=category,
+            file_type=path.suffix.lstrip(".").lower(),
+            sheet_name=sheet_name,
+            row_start=None,
+            row_end=None,
+            columns=valid_headers,
+            chunk_type="spreadsheet_sheet_summary",
+        ),
+    }
+
+
+def _non_empty_excel_cell_lines(row: Any, valid_headers: list[str]) -> list[str]:
+    return [
+        f"  - {col}: {value}"
+        for col in valid_headers
+        for value in [_cell_to_str(row.get(col, ""))]
+        if value
+    ]
+
+
+def _excel_row_title(sheet_title: str, row: Any, valid_headers: list[str]) -> str:
+    first_vals = [
+        value
+        for col in valid_headers
+        for value in [_cell_to_str(row.get(col, ""))]
+        if value
+    ][:3]
+    return f"{sheet_title} â€“ {' â€“ '.join(first_vals)}" if first_vals else sheet_title
+
+
+def _excel_row_chunk(
+    *,
+    path: Path,
+    row: Any,
+    df_index: int,
+    sheet_name: str,
+    sheet_doc_id: str,
+    sheet_title: str,
+    relative_path: str,
+    category: str,
+    valid_headers: list[str],
+    chunk_id: int,
+) -> dict[str, Any] | None:
+    col_lines = _non_empty_excel_cell_lines(row, valid_headers)
+    if not col_lines:
+        return None
+
+    spreadsheet_row = int(df_index) + 2  # 1=header, so data starts at 2
+    row_text = (
+        f"Source: {path.name}\n"
+        f"Sheet: {sheet_name}\n"
+        f"Row: {spreadsheet_row}\n"
+        f"Columns:\n" + "\n".join(col_lines)
+    )
+    return {
+        "doc_id": sheet_doc_id,
+        "chunk_id": chunk_id,
+        "title": _excel_row_title(sheet_title, row, valid_headers),
+        "text": row_text,
+        "metadata": _spreadsheet_chunk_metadata(
+            relative_path=relative_path,
+            category=category,
+            file_type=path.suffix.lstrip(".").lower(),
+            sheet_name=sheet_name,
+            row_start=spreadsheet_row,
+            row_end=spreadsheet_row,
+            columns=valid_headers,
+            chunk_type="spreadsheet_row",
+        ),
+    }
+
+
+def _append_excel_sheet_chunks(
+    chunks: list[dict[str, Any]],
+    *,
+    chunk_id: int,
+    path: Path,
+    sheet_name: str,
+    df: Any,
+    doc_id: str,
+    title: str,
+    relative_path: str,
+    category: str,
+) -> int:
+    if df.empty:
+        logger.debug("Skipping empty sheet '%s' in %s", sheet_name, relative_path)
+        return chunk_id
+
+    valid_headers = [str(c).strip() for c in df.columns if str(c).strip()]
+    if not valid_headers:
+        return chunk_id
+
+    sheet_doc_id = f"{doc_id}_{_sanitize_sheet_name(sheet_name)}"
+    sheet_title = f"{title} â€“ {sheet_name}"
+    chunks.append(
+        _excel_summary_chunk(
+            path=path,
+            sheet_name=sheet_name,
+            sheet_doc_id=sheet_doc_id,
+            sheet_title=sheet_title,
+            relative_path=relative_path,
+            category=category,
+            valid_headers=valid_headers,
+            row_count=len(df),
+            chunk_id=chunk_id,
+        )
+    )
+    chunk_id += 1
+
+    for df_index, row in df.iterrows():
+        row_chunk = _excel_row_chunk(
+            path=path,
+            row=row,
+            df_index=df_index,
+            sheet_name=sheet_name,
+            sheet_doc_id=sheet_doc_id,
+            sheet_title=sheet_title,
+            relative_path=relative_path,
+            category=category,
+            valid_headers=valid_headers,
+            chunk_id=chunk_id,
+        )
+        if row_chunk is None:
+            continue
+        chunks.append(row_chunk)
+        chunk_id += 1
+
+    return chunk_id
+
+
 def load_excel_chunks(
     path: Path,
     *,
@@ -267,148 +537,28 @@ def load_excel_chunks(
     Uses pandas.read_excel so both .xlsx (openpyxl) and .xls (xlrd) are supported.
     dtype=str and keep_default_na=False prevent float-coercion and NaN artefacts.
     """
-    try:
-        import pandas as pd  # noqa: PLC0415
-    except ImportError as exc:
-        raise RuntimeError(
-            "pandas is required for Excel support. Install it with: pip install pandas openpyxl"
-        ) from exc
-
-    # Choose engine explicitly so pandas doesn't attempt xlrd for .xlsx files.
-    ext = path.suffix.lower()
-    engine = "xlrd" if ext == ".xls" else "openpyxl"
-
-    # Detect OLE magic bytes — a file that is actually XLS but named .xlsx.
-    _OLE_MAGIC = b"\xd0\xcf\x11\xe0"
-    try:
-        file_header = path.read_bytes()[:4]
-    except OSError:
-        file_header = b""
-
-    if file_header == _OLE_MAGIC and ext != ".xls":
-        logger.warning(
-            "Skipping %s: file appears to be in old .xls (OLE) format despite %s extension. "
-            "Re-save the file as .xlsx, or rename it to .xls and install xlrd.",
-            relative_path,
-            ext,
-        )
-        return []
-
-    try:
-        sheets: dict[str, Any] = pd.read_excel(
-            path,
-            sheet_name=None,
-            dtype=str,
-            keep_default_na=False,
-            engine=engine,
-        )
-    except ImportError as exc:
-        raise RuntimeError(
-            f"Missing Excel engine for {path.suffix}: {exc}. "
-            "Install openpyxl (for .xlsx/.xlsm) or xlrd (for .xls)."
-        ) from exc
-    except Exception as exc:
-        logger.warning("Corrupt or unreadable Excel file %s: %s", relative_path, exc)
+    sheets = _read_excel_sheets(path, relative_path)
+    if sheets is None:
         return []
 
     chunks: list[dict[str, Any]] = []
     chunk_id = 0
 
     for sheet_name, df in sheets.items():
-        if df.empty:
-            logger.debug("Skipping empty sheet '%s' in %s", sheet_name, relative_path)
-            continue
-
-        headers = [str(c).strip() for c in df.columns]
-        valid_headers = [h for h in headers if h]
-        if not valid_headers:
-            continue
-
-        sheet_doc_id = f"{doc_id}_{_sanitize_sheet_name(sheet_name)}"
-        sheet_title = f"{title} – {sheet_name}"
-
-        # Sheet-level summary chunk
-        summary_text = (
-            f"Source: {path.name}\n"
-            f"Sheet: {sheet_name}\n"
-            f"File type: {path.suffix.lstrip('.')}\n"
-            f"Columns: {', '.join(valid_headers)}\n"
-            f"Row count: {len(df)}"
+        chunk_id = _append_excel_sheet_chunks(
+            chunks,
+            chunk_id=chunk_id,
+            path=path,
+            sheet_name=sheet_name,
+            df=df,
+            doc_id=doc_id,
+            title=title,
+            relative_path=relative_path,
+            category=category,
         )
-        chunks.append(
-            {
-                "doc_id": f"{sheet_doc_id}_summary",
-                "chunk_id": chunk_id,
-                "title": sheet_title,
-                "text": summary_text,
-                "metadata": {
-                    "source_path": relative_path,
-                    "type": category,
-                    "file_type": path.suffix.lstrip(".").lower(),
-                    "sheet_name": sheet_name,
-                    "row_start": None,
-                    "row_end": None,
-                    "columns": valid_headers,
-                    "chunk_type": "spreadsheet_sheet_summary",
-                },
-            }
-        )
-        chunk_id += 1
-
-        # Row-level chunks
-        # df_index is 0-based; spreadsheet row = df_index + 2 (header is row 1)
-        for df_index, row in df.iterrows():
-            col_lines = []
-            for col in valid_headers:
-                val = _cell_to_str(row.get(col, ""))
-                if val:
-                    col_lines.append(f"  - {col}: {val}")
-
-            if not col_lines:
-                continue  # skip rows where every cell is empty
-
-            first_vals = [
-                _cell_to_str(row.get(col, ""))
-                for col in valid_headers
-                if _cell_to_str(row.get(col, ""))
-            ][:3]
-            row_title = (
-                f"{sheet_title} – {' – '.join(first_vals)}" if first_vals else sheet_title
-            )
-
-            spreadsheet_row = int(df_index) + 2  # 1=header, so data starts at 2
-
-            row_text = (
-                f"Source: {path.name}\n"
-                f"Sheet: {sheet_name}\n"
-                f"Row: {spreadsheet_row}\n"
-                f"Columns:\n" + "\n".join(col_lines)
-            )
-
-            chunks.append(
-                {
-                    "doc_id": sheet_doc_id,
-                    "chunk_id": chunk_id,
-                    "title": row_title,
-                    "text": row_text,
-                    "metadata": {
-                        "source_path": relative_path,
-                        "type": category,
-                        "file_type": path.suffix.lstrip(".").lower(),
-                        "sheet_name": sheet_name,
-                        "row_start": spreadsheet_row,
-                        "row_end": spreadsheet_row,
-                        "columns": valid_headers,
-                        "chunk_type": "spreadsheet_row",
-                    },
-                }
-            )
-            chunk_id += 1
 
     return chunks
 
-
-# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -430,7 +580,7 @@ def load_file_chunks(
             f"Unsupported KB document format: {ext!r}. "
             f"Supported: {sorted(SUPPORTED_SUFFIXES)}"
         )
-    if ext in {".md", ".txt", ".json"}:
+    if ext in TEXT_SUFFIXES:
         return load_markdown_chunks(
             path,
             doc_id=doc_id,
@@ -440,7 +590,7 @@ def load_file_chunks(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
         )
-    if ext == ".csv":
+    if ext == EXT_CSV:
         return load_csv_chunks(
             path,
             doc_id=doc_id,
@@ -448,7 +598,7 @@ def load_file_chunks(
             relative_path=relative_path,
             category=category,
         )
-    if ext in {".xls", ".xlsx", ".xlsm"}:
+    if ext in EXCEL_SUFFIXES:
         return load_excel_chunks(
             path,
             doc_id=doc_id,

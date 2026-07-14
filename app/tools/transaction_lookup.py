@@ -27,6 +27,7 @@ CREDIT = "credit"
 DEFAULT_LIMIT: int = 25
 DEFAULT_SORT_BY: str = "timestamp"
 DEFAULT_SORT_DESCENDING: bool = True
+LIMIT_POSITIVE_ERROR = "limit must be greater than zero."
 
 ALLOWED_DIRECTIONS: frozenset[str] = frozenset({DEBIT, CREDIT})
 ALLOWED_SORT_FIELDS: frozenset[str] = frozenset(
@@ -112,142 +113,8 @@ class TransactionLookupResult:
     match_count: int
     applied_filters: dict[str, Any] = field(default_factory=dict)
     warnings: tuple[str, ...] = ()
-##BRICK :
-DECIMAL_QUANTIZE_PLACES = Decimal("0.01")
 
 
-def _normalize_string_tuple(values: Any) -> tuple[str, ...]:
-    """Normalize string-like filter inputs into a clean tuple of strings."""
-    if values is None:
-        return ()
-
-    if isinstance(values, str):
-        candidate_values = [values]
-    elif isinstance(values, (list, tuple, set, frozenset)):
-        candidate_values = list(values)
-    else:
-        raise TransactionLookupInputError(
-            "Filter values must be a string, sequence, or None."
-        )
-
-    normalized: list[str] = []
-    for value in candidate_values:
-        if value is None:
-            continue
-        if not isinstance(value, str):
-            raise TransactionLookupInputError("All filter values must be strings.")
-        cleaned = value.strip()
-        if cleaned:
-            normalized.append(cleaned)
-
-    return tuple(normalized)
-
-
-def _normalize_decimal(value: Any, field_name: str) -> Decimal | None:
-    """Normalize an optional amount-bound value into a quantized Decimal."""
-    if value is None:
-        return None
-
-    try:
-        normalized = Decimal(str(value)).quantize(DECIMAL_QUANTIZE_PLACES)
-    except Exception as exc:  # pragma: no cover
-        raise TransactionLookupInputError(
-            f"{field_name} must be a valid decimal-compatible value."
-        ) from exc
-
-    return normalized
-
-
-def normalize_transaction_lookup_request(
-    *,
-    user_id: str | None = None,
-    transaction_ids: Any = None,
-    account_ids: Any = None,
-    merchants: Any = None,
-    categories: Any = None,
-    direction: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    min_amount: Any = None,
-    max_amount: Any = None,
-    limit: int = DEFAULT_LIMIT,
-    sort_by: str = DEFAULT_SORT_BY,
-    sort_descending: bool = DEFAULT_SORT_DESCENDING,
-) -> TransactionLookupRequest:
-    """Validate and normalize raw request values into a deterministic lookup request."""
-    cleaned_user_id = user_id.strip() if isinstance(user_id, str) and user_id.strip() else None
-    cleaned_start_date = start_date.strip() if isinstance(start_date, str) and start_date.strip() else None
-    cleaned_end_date = end_date.strip() if isinstance(end_date, str) and end_date.strip() else None
-
-    normalized_direction: str | None = None
-    if direction is not None:
-        if not isinstance(direction, str) or not direction.strip():
-            raise TransactionLookupInputError(
-                "direction must be a non-empty string when provided."
-            )
-        normalized_direction = direction.strip().lower()
-        if normalized_direction not in ALLOWED_DIRECTIONS:
-            raise TransactionLookupInputError(
-                f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
-            )
-
-    if not isinstance(sort_by, str) or not sort_by.strip():
-        raise TransactionLookupInputError("sort_by must be a non-empty string.")
-    normalized_sort_by = sort_by.strip()
-    if normalized_sort_by not in ALLOWED_SORT_FIELDS:
-        raise TransactionLookupInputError(
-            f"Unsupported sort_by '{sort_by}'. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}."
-        )
-
-    if not isinstance(sort_descending, bool):
-        raise TransactionLookupInputError("sort_descending must be a boolean.")
-
-    if not isinstance(limit, int):
-        raise TransactionLookupInputError("limit must be an integer.")
-    if limit <= 0:
-        raise TransactionLookupInputError("limit must be greater than zero.")
-
-    normalized_min_amount = _normalize_decimal(min_amount, "min_amount")
-    normalized_max_amount = _normalize_decimal(max_amount, "max_amount")
-
-    if cleaned_start_date and cleaned_end_date and cleaned_start_date > cleaned_end_date:
-        raise TransactionLookupInputError(
-            "start_date must be less than or equal to end_date."
-        )
-
-    if (
-        normalized_min_amount is not None
-        and normalized_max_amount is not None
-        and normalized_min_amount > normalized_max_amount
-    ):
-        raise TransactionLookupInputError(
-            "min_amount must be less than or equal to max_amount."
-        )
-
-    return TransactionLookupRequest(
-        user_id=cleaned_user_id,
-        transaction_ids=_normalize_string_tuple(transaction_ids),
-        account_ids=_normalize_string_tuple(account_ids),
-        merchants=_normalize_string_tuple(merchants),
-        categories=_normalize_string_tuple(categories),
-        direction=normalized_direction,
-        start_date=cleaned_start_date,
-        end_date=cleaned_end_date,
-        min_amount=normalized_min_amount,
-        max_amount=normalized_max_amount,
-        limit=limit,
-        sort_by=normalized_sort_by,
-        sort_descending=sort_descending,
-    )
-
-
-def validate_required_columns(df: pd.DataFrame) -> None:
-    """Validate that the processed dataframe contains the required lookup columns."""
-    missing_columns = sorted(REQUIRED_COLUMNS.difference(df.columns))
-    if missing_columns:
-        raise TransactionLookupInputError(
-            f"Input dataframe is missing required columns: {missing_columns}."
-        )
 ##BRICK 2: Implement normalization functions for string-like filter inputs and decimal amount bounds. These functions ensure that the transaction lookup request is constructed with clean, validated, and appropriately typed values, ready for deterministic querying against the transaction dataset.
 DECIMAL_QUANTIZE_PLACES = Decimal("0.01")
 
@@ -294,6 +161,62 @@ def _normalize_decimal(value: Any, field_name: str) -> Decimal | None:
     return normalized
 
 
+def _clean_optional_string(value: str | None) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _normalize_direction(direction: str | None) -> str | None:
+    if direction is None:
+        return None
+    if not isinstance(direction, str) or not direction.strip():
+        raise TransactionLookupInputError(
+            "direction must be a non-empty string when provided."
+        )
+    normalized_direction = direction.strip().lower()
+    if normalized_direction not in ALLOWED_DIRECTIONS:
+        raise TransactionLookupInputError(
+            f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
+        )
+    return normalized_direction
+
+
+def _normalize_sort_options(sort_by: str, sort_descending: bool) -> tuple[str, bool]:
+    if not isinstance(sort_by, str) or not sort_by.strip():
+        raise TransactionLookupInputError("sort_by must be a non-empty string.")
+    normalized_sort_by = sort_by.strip()
+    if normalized_sort_by not in ALLOWED_SORT_FIELDS:
+        raise TransactionLookupInputError(
+            f"Unsupported sort_by '{sort_by}'. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}."
+        )
+    if not isinstance(sort_descending, bool):
+        raise TransactionLookupInputError("sort_descending must be a boolean.")
+    return normalized_sort_by, sort_descending
+
+
+def _validate_positive_limit(limit: int) -> None:
+    if not isinstance(limit, int):
+        raise TransactionLookupInputError("limit must be an integer.")
+    if limit <= 0:
+        raise TransactionLookupInputError(LIMIT_POSITIVE_ERROR)
+
+
+def _validate_date_order(start_date: str | None, end_date: str | None) -> None:
+    if start_date and end_date and start_date > end_date:
+        raise TransactionLookupInputError(
+            "start_date must be less than or equal to end_date."
+        )
+
+
+def _validate_amount_order(
+    min_amount: Decimal | None,
+    max_amount: Decimal | None,
+) -> None:
+    if min_amount is not None and max_amount is not None and min_amount > max_amount:
+        raise TransactionLookupInputError(
+            "min_amount must be less than or equal to max_amount."
+        )
+
+
 def normalize_transaction_lookup_request(
     *,
     user_id: str | None = None,
@@ -311,54 +234,19 @@ def normalize_transaction_lookup_request(
     sort_descending: bool = DEFAULT_SORT_DESCENDING,
 ) -> TransactionLookupRequest:
     """Validate and normalize raw request values into a deterministic lookup request."""
-    cleaned_user_id = user_id.strip() if isinstance(user_id, str) and user_id.strip() else None
-    cleaned_start_date = start_date.strip() if isinstance(start_date, str) and start_date.strip() else None
-    cleaned_end_date = end_date.strip() if isinstance(end_date, str) and end_date.strip() else None
-
-    normalized_direction: str | None = None
-    if direction is not None:
-        if not isinstance(direction, str) or not direction.strip():
-            raise TransactionLookupInputError(
-                "direction must be a non-empty string when provided."
-            )
-        normalized_direction = direction.strip().lower()
-        if normalized_direction not in ALLOWED_DIRECTIONS:
-            raise TransactionLookupInputError(
-                f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
-            )
-
-    if not isinstance(sort_by, str) or not sort_by.strip():
-        raise TransactionLookupInputError("sort_by must be a non-empty string.")
-    normalized_sort_by = sort_by.strip()
-    if normalized_sort_by not in ALLOWED_SORT_FIELDS:
-        raise TransactionLookupInputError(
-            f"Unsupported sort_by '{sort_by}'. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}."
-        )
-
-    if not isinstance(sort_descending, bool):
-        raise TransactionLookupInputError("sort_descending must be a boolean.")
-
-    if not isinstance(limit, int):
-        raise TransactionLookupInputError("limit must be an integer.")
-    if limit <= 0:
-        raise TransactionLookupInputError("limit must be greater than zero.")
-
+    cleaned_user_id = _clean_optional_string(user_id)
+    cleaned_start_date = _clean_optional_string(start_date)
+    cleaned_end_date = _clean_optional_string(end_date)
+    normalized_direction = _normalize_direction(direction)
+    normalized_sort_by, normalized_sort_descending = _normalize_sort_options(
+        sort_by,
+        sort_descending,
+    )
+    _validate_positive_limit(limit)
     normalized_min_amount = _normalize_decimal(min_amount, "min_amount")
     normalized_max_amount = _normalize_decimal(max_amount, "max_amount")
-
-    if cleaned_start_date and cleaned_end_date and cleaned_start_date > cleaned_end_date:
-        raise TransactionLookupInputError(
-            "start_date must be less than or equal to end_date."
-        )
-
-    if (
-        normalized_min_amount is not None
-        and normalized_max_amount is not None
-        and normalized_min_amount > normalized_max_amount
-    ):
-        raise TransactionLookupInputError(
-            "min_amount must be less than or equal to max_amount."
-        )
+    _validate_date_order(cleaned_start_date, cleaned_end_date)
+    _validate_amount_order(normalized_min_amount, normalized_max_amount)
 
     return TransactionLookupRequest(
         user_id=cleaned_user_id,
@@ -373,7 +261,7 @@ def normalize_transaction_lookup_request(
         max_amount=normalized_max_amount,
         limit=limit,
         sort_by=normalized_sort_by,
-        sort_descending=sort_descending,
+        sort_descending=normalized_sort_descending,
     )
 
 
@@ -636,7 +524,7 @@ def limit_transaction_results(
 ) -> pd.DataFrame:
     """Limit sorted transaction rows deterministically."""
     if limit <= 0:
-        raise TransactionLookupInputError("limit must be greater than zero.")
+        raise TransactionLookupInputError(LIMIT_POSITIVE_ERROR)
 
     return df.head(limit).copy()
 ##BRICK 5: Implement normalization functions for the output transaction fields (string fields, amount field, timestamp field). These functions ensure that the final transaction records are constructed with clean, validated, and appropriately typed values. The main function to build a transaction record takes a dataframe row and applies these normalization functions to construct a typed TransactionRecord dataclass instance.

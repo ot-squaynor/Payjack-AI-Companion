@@ -27,6 +27,7 @@ MOMO = "momo"
 DEFAULT_DIRECTION: str = DEBIT
 DEFAULT_GROUP_LIMIT: int = 10
 DEFAULT_SORT_DESCENDING: bool = True
+NORMALIZED_AMOUNT_DECIMAL_ERROR = "normalized_amount must contain Decimal values."
 
 ALLOWED_DIRECTIONS: frozenset[str] = frozenset({DEBIT, CREDIT, MOMO}) # Only allow explicit direction filtering for clarity and deterministic output structure.
 
@@ -133,6 +134,48 @@ def _normalize_string_tuple(values: Any) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def _clean_optional_string(value: str | None) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _normalize_direction(direction: str) -> str:
+    normalized_direction = (
+        direction.strip().lower()
+        if isinstance(direction, str) and direction.strip()
+        else DEFAULT_DIRECTION
+    )
+    if normalized_direction not in ALLOWED_DIRECTIONS:
+        raise SpendSummaryInputError(
+            f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
+        )
+    return normalized_direction
+
+
+def _normalize_group_by(group_by: str | None) -> str | None:
+    if group_by is None:
+        return None
+    if not isinstance(group_by, str) or not group_by.strip():
+        raise SpendSummaryInputError("group_by must be a non-empty string when provided.")
+    normalized_group_by = group_by.strip().lower()
+    if normalized_group_by not in ALLOWED_GROUP_BY:
+        raise SpendSummaryInputError(
+            f"Unsupported group_by '{group_by}'. Allowed values: {sorted(ALLOWED_GROUP_BY)}."
+        )
+    return normalized_group_by
+
+
+def _validate_positive_limit(limit: int) -> None:
+    if not isinstance(limit, int):
+        raise SpendSummaryInputError("limit must be an integer.")
+    if limit <= 0:
+        raise SpendSummaryInputError("limit must be greater than zero.")
+
+
+def _validate_date_order(start_date: str | None, end_date: str | None) -> None:
+    if start_date and end_date and start_date > end_date:
+        raise SpendSummaryInputError("start_date must be less than or equal to end_date.")
+
+
 def normalize_spend_summary_request(
     *,
     user_id: str | None = None,
@@ -146,33 +189,13 @@ def normalize_spend_summary_request(
     limit: int = DEFAULT_GROUP_LIMIT,
 ) -> SpendSummaryRequest:
     """Validate and normalize raw request values into a deterministic request contract."""
-    cleaned_user_id = user_id.strip() if isinstance(user_id, str) and user_id.strip() else None
-    cleaned_start_date = start_date.strip() if isinstance(start_date, str) and start_date.strip() else None
-    cleaned_end_date = end_date.strip() if isinstance(end_date, str) and end_date.strip() else None
-
-    normalized_direction = direction.strip().lower() if isinstance(direction, str) and direction.strip() else DEFAULT_DIRECTION
-    if normalized_direction not in ALLOWED_DIRECTIONS:
-        raise SpendSummaryInputError(
-            f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
-        )
-
-    normalized_group_by: str | None = None
-    if group_by is not None:
-        if not isinstance(group_by, str) or not group_by.strip():
-            raise SpendSummaryInputError("group_by must be a non-empty string when provided.")
-        normalized_group_by = group_by.strip().lower()
-        if normalized_group_by not in ALLOWED_GROUP_BY:
-            raise SpendSummaryInputError(
-                f"Unsupported group_by '{group_by}'. Allowed values: {sorted(ALLOWED_GROUP_BY)}."
-            )
-
-    if not isinstance(limit, int):
-        raise SpendSummaryInputError("limit must be an integer.")
-    if limit <= 0:
-        raise SpendSummaryInputError("limit must be greater than zero.")
-
-    if cleaned_start_date and cleaned_end_date and cleaned_start_date > cleaned_end_date:
-        raise SpendSummaryInputError("start_date must be less than or equal to end_date.")
+    cleaned_user_id = _clean_optional_string(user_id)
+    cleaned_start_date = _clean_optional_string(start_date)
+    cleaned_end_date = _clean_optional_string(end_date)
+    normalized_direction = _normalize_direction(direction)
+    normalized_group_by = _normalize_group_by(group_by)
+    _validate_positive_limit(limit)
+    _validate_date_order(cleaned_start_date, cleaned_end_date)
 
     return SpendSummaryRequest(
         user_id=cleaned_user_id,
@@ -362,7 +385,7 @@ def build_currency_breakdown(df: pd.DataFrame) -> dict[str, Decimal]:
 
         amount = row["normalized_amount"]
         if not isinstance(amount, Decimal):
-            raise SpendSummaryInputError("normalized_amount must contain Decimal values.")
+            raise SpendSummaryInputError(NORMALIZED_AMOUNT_DECIMAL_ERROR)
 
         currency_totals.setdefault(currency, []).append(amount)
 
@@ -379,7 +402,7 @@ def aggregate_total_spend(df: pd.DataFrame) -> Decimal:
 
     amounts = df["normalized_amount"].tolist()
     if any(not isinstance(amount, Decimal) for amount in amounts):
-        raise SpendSummaryInputError("normalized_amount must contain Decimal values.")
+        raise SpendSummaryInputError(NORMALIZED_AMOUNT_DECIMAL_ERROR)
 
     return _sum_decimal_values(amounts)
 
@@ -465,7 +488,7 @@ def aggregate_grouped_spend(
         currency = str(df.at[idx, "currency"]).strip()
 
         if not isinstance(amount, Decimal):
-            raise SpendSummaryInputError("normalized_amount must contain Decimal values.")
+            raise SpendSummaryInputError(NORMALIZED_AMOUNT_DECIMAL_ERROR)
 
         if not currency:
             raise SpendSummaryInputError("Input dataframe contains blank currency values.")

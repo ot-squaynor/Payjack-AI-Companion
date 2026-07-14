@@ -258,90 +258,123 @@ def _relative_range(current_date: date, count: int, unit: str) -> tuple[str, str
     return start.isoformat(), current_date.isoformat()
 
 # Helper function for extracting date filters from a user message by checking for various patterns that indicate specific date ranges, such as "today", "yesterday", "last month", "this month", "last year", "this year", relative date ranges like "past 7 days", specific quarters, and specific month-day ranges. This function returns a dictionary of date filter arguments that can be used for tool calls that require date-based filtering of financial data based on the user's message.
-def _extract_date_filters(message: str, *, current_date: date) -> dict[str, object]:
-    """Extract date filters from the user message based on various patterns indicating specific date ranges."""
-    filters: dict[str, object] = {}
+def _date_filter_range(start_date: str, end_date: str) -> dict[str, object]:
+    return {"start_date": start_date, "end_date": end_date}
+
+
+def _explicit_date_filters(message: str, *, current_date: date) -> dict[str, object] | None:
     if "today" in message:
-        filters["start_date"] = current_date.isoformat()
-        filters["end_date"] = current_date.isoformat()
-        return filters
+        return _date_filter_range(current_date.isoformat(), current_date.isoformat())
     if "yesterday" in message:
         yesterday = current_date - timedelta(days=1)
-        filters["start_date"] = yesterday.isoformat()
-        filters["end_date"] = yesterday.isoformat()
-        return filters
+        return _date_filter_range(yesterday.isoformat(), yesterday.isoformat())
     if "last month" in message:
-        filters["start_date"], filters["end_date"] = _this_or_previous_month(current_date, previous=True)
-        return filters
+        return _date_filter_range(
+            *_this_or_previous_month(current_date, previous=True)
+        )
     if "this month" in message:
-        filters["start_date"], filters["end_date"] = _this_or_previous_month(current_date, previous=False)
-        return filters
+        return _date_filter_range(
+            *_this_or_previous_month(current_date, previous=False)
+        )
     if "last year" in message:
         year = current_date.year - 1
-        filters["start_date"] = date(year, 1, 1).isoformat()
-        filters["end_date"] = date(year, 12, 31).isoformat()
-        return filters
+        return _date_filter_range(
+            date(year, 1, 1).isoformat(),
+            date(year, 12, 31).isoformat(),
+        )
     if "this year" in message or "first six months of this year" in message:
-        filters["start_date"] = date(current_date.year, 1, 1).isoformat()
-        filters["end_date"] = date(current_date.year, 6 if "first six months" in message else current_date.month, 30 if "first six months" in message else current_date.day).isoformat()
-        return filters
+        end_month = 6 if "first six months" in message else current_date.month
+        end_day = 30 if "first six months" in message else current_date.day
+        return _date_filter_range(
+            date(current_date.year, 1, 1).isoformat(),
+            date(current_date.year, end_month, end_day).isoformat(),
+        )
+    return None
 
+
+def _relative_date_filters(message: str, *, current_date: date) -> dict[str, object] | None:
     past_match = PAST_N_RE.search(message)
-    if past_match:
-        filters["start_date"], filters["end_date"] = _relative_range(
+    if past_match is None:
+        return None
+
+    return _date_filter_range(
+        *_relative_range(
             current_date,
             int(past_match.group("count")),
             past_match.group("unit"),
         )
-        return filters
+    )
 
+
+def _quarter_date_filters(message: str, *, current_date: date) -> dict[str, object] | None:
     quarter_match = QUARTER_RE.search(message)
-    if quarter_match:
-        quarter = quarter_match.group("quarter")
-        if quarter is None:
-            quarter = {"first": "1", "second": "2", "third": "3", "fourth": "4"}[quarter_match.group("word")]
-        quarter_number = int(quarter)
-        start_month = (quarter_number - 1) * 3 + 1
-        end_month = start_month + 2
-        filters["start_date"] = date(current_date.year, start_month, 1).isoformat()
-        filters["end_date"] = date(
+    if quarter_match is None:
+        return None
+
+    quarter = quarter_match.group("quarter")
+    if quarter is None:
+        quarter = {"first": "1", "second": "2", "third": "3", "fourth": "4"}[
+            quarter_match.group("word")
+        ]
+    quarter_number = int(quarter)
+    start_month = (quarter_number - 1) * 3 + 1
+    end_month = start_month + 2
+    return _date_filter_range(
+        date(current_date.year, start_month, 1).isoformat(),
+        date(
             current_date.year,
             end_month,
             calendar.monthrange(current_date.year, end_month)[1],
-        ).isoformat()
-        return filters
+        ).isoformat(),
+    )
 
+
+def _calendar_date_filters(message: str, *, current_date: date) -> dict[str, object] | None:
     month_day_match = MONTH_DAY_RANGE_RE.search(message)
     if month_day_match:
         month = MONTH_NAME_TO_NUMBER[month_day_match.group("month")]
-        start_day = int(month_day_match.group("start_day"))
-        end_day = int(month_day_match.group("end_day"))
-        filters["start_date"] = date(current_date.year, month, start_day).isoformat()
-        filters["end_date"] = date(current_date.year, month, end_day).isoformat()
-        return filters
+        return _date_filter_range(
+            date(current_date.year, month, int(month_day_match.group("start_day"))).isoformat(),
+            date(current_date.year, month, int(month_day_match.group("end_day"))).isoformat(),
+        )
 
     month_range_match = MONTH_RANGE_RE.search(message)
     if month_range_match:
         start_month = MONTH_NAME_TO_NUMBER[month_range_match.group("start")]
         end_month = MONTH_NAME_TO_NUMBER[month_range_match.group("end")]
         end_year = current_date.year + (1 if end_month < start_month else 0)
-        filters["start_date"] = date(current_date.year, start_month, 1).isoformat()
-        filters["end_date"] = date(
-            end_year,
-            end_month,
-            calendar.monthrange(end_year, end_month)[1],
-        ).isoformat()
-        return filters
+        return _date_filter_range(
+            date(current_date.year, start_month, 1).isoformat(),
+            date(
+                end_year,
+                end_month,
+                calendar.monthrange(end_year, end_month)[1],
+            ).isoformat(),
+        )
 
     in_month_match = IN_MONTH_RE.search(message)
     if in_month_match:
-        filters["start_date"], filters["end_date"] = _month_range(
-            current_date,
-            MONTH_NAME_TO_NUMBER[in_month_match.group("month")],
+        return _date_filter_range(
+            *_month_range(
+                current_date,
+                MONTH_NAME_TO_NUMBER[in_month_match.group("month")],
+            )
         )
-        return filters
+    return None
 
-    return filters
+
+def _extract_date_filters(message: str, *, current_date: date) -> dict[str, object]:
+    """Extract date filters from the user message based on various patterns indicating specific date ranges."""
+    for resolver in (
+        _explicit_date_filters,
+        _relative_date_filters,
+        _quarter_date_filters,
+        _calendar_date_filters,
+    ):
+        filters = resolver(message, current_date=current_date)
+        if filters is not None:
+            return filters
+    return {}
 
 # Helper function for extracting categories from a user message by checking for the presence of keywords associated with different categories of transactions (such as groceries, transport, bills, etc.) and returning a tuple of identified categories that can be used for tool calls that require category-based filtering of financial data based on the user's message.
 def _extract_categories(message: str) -> tuple[str, ...]:

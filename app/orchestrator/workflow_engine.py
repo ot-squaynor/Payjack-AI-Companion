@@ -16,19 +16,21 @@ from app.api.schemas import ChatRequest, ChatResponse
 from app.chat_history.store import ChatHistoryError, ChatHistoryStore
 from app.config import Settings
 from app.errors import PolicyViolationError
-from app.llm.autoregressive.bedrock_client import GenerationRequest
+from app.llm.autoregressive.bedrock_client import GenerationRequest, GenerationResult
 from app.llm.prompts.system_prompt import build_system_prompt
 from app.memory.session_memory import (
     InMemorySessionMemoryStore,
+    MemoryFollowupResolution,
+    SessionMemorySnapshot,
     ToolMemoryFact,
     resolve_contextual_followup,
 )
 from app.orchestrator.context_builder import build_generation_prompt
-from app.orchestrator.intent_router import route_message
+from app.orchestrator.intent_router import RouteDecision, route_message
 from app.rag.retriever import RetrieverResult
 from app.repository.processed_store import ProcessedStoreError
 from app.orchestrator.response_formatter import format_chat_response
-from app.orchestrator.response_planner import plan_static_response
+from app.orchestrator.response_planner import StaticResponsePlan, plan_static_response
 from app.security.audit_logging import log_audit_event
 from app.security.auth_context import AuthContext
 from app.security.parameter_validator import validate_chat_request
@@ -128,6 +130,249 @@ class WorkflowEngine:
 
         return response
 
+    def _ensure_history_session(
+        self,
+        *,
+        session_id: str,
+        auth_context: AuthContext,
+    ) -> None:
+        if self.chat_history_store is None:
+            return
+        try:
+            self.chat_history_store.get_or_create_session(
+                session_id=session_id,
+                auth_context=auth_context,
+            )
+        except ChatHistoryError:
+            logger.warning(
+                "Failed to get-or-create durable chat session %s; continuing without durable history.",
+                session_id,
+                exc_info=True,
+            )
+
+    def _handle_memory_followup(
+        self,
+        *,
+        request: ChatRequest,
+        request_id: str,
+        session_id: str,
+        started_at: float,
+        memory_followup: MemoryFollowupResolution,
+        auth_context: AuthContext,
+    ) -> ChatResponse:
+        total_duration = measure_duration("chat_request", started_at)
+        debug = (
+            {
+                "memory_context": memory_followup.to_debug_dict(),
+                "duration_ms": total_duration.milliseconds,
+            }
+            if self.settings.enable_debug_traces
+            else {}
+        )
+        response = format_chat_response(
+            request_id=request_id,
+            session_id=session_id,
+            route=memory_followup.route,
+            answer=memory_followup.answer,
+            tool_traces=[],
+            citations=[],
+            debug=debug,
+        )
+        log_audit_event(
+            event_type="chat_response",
+            request_id=request_id,
+            auth_context=auth_context,
+            payload={
+                "route": memory_followup.route,
+                "intent": "contextual_followup",
+                "confidence": memory_followup.confidence,
+                "allowed": True,
+                "refusal_reason": None,
+                "duration_ms": total_duration.milliseconds,
+                "tool_count": 0,
+                "citation_count": 0,
+                "memory_source_request_id": memory_followup.source_request_id,
+            },
+        )
+        return self._remember_response(
+            response=response,
+            user_message=request.message,
+            auth_context=auth_context,
+        )
+
+    def _handle_static_plan(
+        self,
+        *,
+        request: ChatRequest,
+        request_id: str,
+        session_id: str,
+        started_at: float,
+        route_decision: RouteDecision,
+        static_plan: StaticResponsePlan,
+        auth_context: AuthContext,
+    ) -> ChatResponse:
+        total_duration = measure_duration("chat_request", started_at)
+        debug = (
+            {
+                "route_decision": route_decision.to_debug_dict(),
+                "duration_ms": total_duration.milliseconds,
+            }
+            if self.settings.enable_debug_traces
+            else {}
+        )
+        log_audit_event(
+            event_type="refusal" if route_decision.route == "refusal_route" else "chat_response",
+            request_id=request_id,
+            auth_context=auth_context,
+            payload={
+                "route": route_decision.route,
+                "intent": route_decision.intent,
+                "confidence": route_decision.confidence,
+                "allowed": route_decision.allowed,
+                "refusal_reason": route_decision.prohibited_reason,
+                "duration_ms": total_duration.milliseconds,
+                "tool_count": 0,
+                "citation_count": 0,
+            },
+        )
+        response = format_chat_response(
+            request_id=request_id,
+            session_id=session_id,
+            route=route_decision.route,
+            answer=static_plan.answer,
+            tool_traces=[],
+            citations=[],
+            refusal=static_plan.refusal,
+            debug=debug,
+        )
+        return self._remember_response(
+            response=response,
+            user_message=request.message,
+            auth_context=auth_context,
+        )
+
+    def _run_tool_invocations(
+        self,
+        *,
+        route_decision: RouteDecision,
+        auth_context: AuthContext,
+    ) -> tuple[list[dict[str, object]], list[ToolMemoryFact], str | None]:
+        tool_traces: list[dict[str, object]] = []
+        memory_tool_facts: list[ToolMemoryFact] = []
+        try:
+            for tool_plan in route_decision.tool_invocations:
+                tool_result = self.tool_registry.invoke(
+                    ToolInvocation(
+                        name=tool_plan.name,
+                        arguments=dict(tool_plan.arguments),
+                    ),
+                    auth_context=auth_context,
+                )
+                memory_tool_facts.append(
+                    ToolMemoryFact(
+                        name=tool_result.name,
+                        arguments=dict(tool_result.arguments),
+                        result=dict(tool_result.payload),
+                        artifact_version=tool_result.artifact_version,
+                    )
+                )
+                tool_traces.append(
+                    {
+                        "name": tool_result.name,
+                        "arguments": redact_value(tool_result.arguments),
+                        "result": redact_value(tool_result.payload),
+                        "warnings": list(tool_result.warnings),
+                        "artifact_version": tool_result.artifact_version,
+                    }
+                )
+        except ProcessedStoreError as exc:
+            return [], [], str(exc)
+        return tool_traces, memory_tool_facts, None
+
+    def _handle_tool_unavailable(
+        self,
+        *,
+        request: ChatRequest,
+        request_id: str,
+        session_id: str,
+        started_at: float,
+        route_decision: RouteDecision,
+        unavailable_reason: str,
+        auth_context: AuthContext,
+    ) -> ChatResponse:
+        total_duration = measure_duration("chat_request", started_at)
+        debug = (
+            {
+                "route_decision": route_decision.to_debug_dict(),
+                "grounding_mode": "tool",
+                "tool_unavailable_reason": unavailable_reason,
+                "duration_ms": total_duration.milliseconds,
+            }
+            if self.settings.enable_debug_traces
+            else {}
+        )
+        response = format_chat_response(
+            request_id=request_id,
+            session_id=session_id,
+            route=route_decision.route,
+            answer=_tool_data_unavailable_answer(),
+            tool_traces=[],
+            citations=[],
+            debug=debug,
+        )
+        return self._remember_response(
+            response=response,
+            user_message=request.message,
+            auth_context=auth_context,
+        )
+
+    def _retrieve_context(
+        self,
+        *,
+        message: str,
+        retrieval_requested: bool,
+    ) -> tuple[RetrieverResult, list[dict[str, object]]]:
+        if not retrieval_requested:
+            return RetrieverResult.empty(reason="retrieval_not_requested"), []
+        if self.retriever is None:
+            retrieval_result = RetrieverResult.empty(reason="retriever_unavailable")
+        else:
+            retrieval_result = self.retriever.retrieve(message)
+        citations = list(retrieval_result) if retrieval_result.usable_context else []
+        return retrieval_result, citations
+
+    def _generation_debug(
+        self,
+        *,
+        route_decision: RouteDecision,
+        grounding_mode: str,
+        generation: GenerationResult,
+        total_duration_ms: float,
+        retrieval_requested: bool,
+        retrieval_result: RetrieverResult,
+    ) -> dict[str, object]:
+        if not self.settings.enable_debug_traces:
+            return {}
+        debug = {
+            "route_decision": route_decision.to_debug_dict(),
+            "grounding_mode": grounding_mode,
+            "model_id": generation.model_id,
+            "llm_request_id": generation.request_id,
+            "usage": generation.usage,
+            "estimated_cost_usd": generation.estimated_cost_usd,
+            "duration_ms": total_duration_ms,
+        }
+        if retrieval_requested:
+            debug.update(
+                {
+                    "retrieval_reason": retrieval_result.fallback_reason,
+                    "retrieved_count": retrieval_result.retrieved_count,
+                    "accepted_citation_count": retrieval_result.accepted_count,
+                    "retrieval_top_score": retrieval_result.top_score,
+                }
+            )
+        return debug
+
     def handle_chat(
         self,
         request: ChatRequest,
@@ -152,18 +397,7 @@ class WorkflowEngine:
         session_id = request.session_id or f"session-{uuid.uuid4().hex[:12]}"
         started_at = time.perf_counter()
 
-        if self.chat_history_store is not None:
-            try:
-                self.chat_history_store.get_or_create_session(
-                    session_id=session_id, auth_context=auth_context
-                )
-            except ChatHistoryError:
-                logger.warning(
-                    "Failed to get-or-create durable chat session %s; continuing without durable history.",
-                    session_id,
-                    exc_info=True,
-                )
-
+        self._ensure_history_session(session_id=session_id, auth_context=auth_context)
         validate_chat_request(
             message=request.message,
             session_id=session_id,
@@ -173,151 +407,49 @@ class WorkflowEngine:
         memory_snapshot = self.session_memory.get(session_id)
         memory_followup = resolve_contextual_followup(request.message, memory_snapshot)
         if memory_followup is not None:
-            total_duration = measure_duration("chat_request", started_at)
-            debug = {}
-            if self.settings.enable_debug_traces:
-                debug = {
-                    "memory_context": memory_followup.to_debug_dict(),
-                    "duration_ms": total_duration.milliseconds,
-                }
-            response = format_chat_response(
+            return self._handle_memory_followup(
+                request=request,
                 request_id=request_id,
                 session_id=session_id,
-                route=memory_followup.route,
-                answer=memory_followup.answer,
-                tool_traces=[],
-                citations=[],
-                debug=debug,
-            )
-            log_audit_event(
-                event_type="chat_response",
-                request_id=request_id,
-                auth_context=auth_context,
-                payload={
-                    "route": memory_followup.route,
-                    "intent": "contextual_followup",
-                    "confidence": memory_followup.confidence,
-                    "allowed": True,
-                    "refusal_reason": None,
-                    "duration_ms": total_duration.milliseconds,
-                    "tool_count": 0,
-                    "citation_count": 0,
-                    "memory_source_request_id": memory_followup.source_request_id,
-                },
-            )
-            return self._remember_response(
-                response=response,
-                user_message=request.message,
+                started_at=started_at,
+                memory_followup=memory_followup,
                 auth_context=auth_context,
             )
 
         route_decision = route_message(request.message)
-        tool_traces: list[dict[str, object]] = []
-        memory_tool_facts: list[ToolMemoryFact] = []
-        citations: list[dict[str, object]] = []
-        retrieval_result = RetrieverResult.empty(reason="retrieval_not_requested")
         retrieval_requested = route_decision.requires_policy_docs
 
         static_plan = plan_static_response(route_decision)
         if static_plan is not None:
-            total_duration = measure_duration("chat_request", started_at)
-            debug = {}
-            if self.settings.enable_debug_traces:
-                debug = {
-                    "route_decision": route_decision.to_debug_dict(),
-                    "duration_ms": total_duration.milliseconds,
-                }
-            log_audit_event(
-                event_type="refusal" if route_decision.route == "refusal_route" else "chat_response",
-                request_id=request_id,
-                auth_context=auth_context,
-                payload={
-                    "route": route_decision.route,
-                    "intent": route_decision.intent,
-                    "confidence": route_decision.confidence,
-                    "allowed": route_decision.allowed,
-                    "refusal_reason": route_decision.prohibited_reason,
-                    "duration_ms": total_duration.milliseconds,
-                    "tool_count": 0,
-                    "citation_count": 0,
-                },
-            )
-            response = format_chat_response(
+            return self._handle_static_plan(
+                request=request,
                 request_id=request_id,
                 session_id=session_id,
-                route=route_decision.route,
-                answer=static_plan.answer,
-                tool_traces=[],
-                citations=[],
-                refusal=static_plan.refusal,
-                debug=debug,
-            )
-            return self._remember_response(
-                response=response,
-                user_message=request.message,
+                started_at=started_at,
+                route_decision=route_decision,
+                static_plan=static_plan,
                 auth_context=auth_context,
             )
 
-        if route_decision.tool_invocations:
-            try:
-                for tool_plan in route_decision.tool_invocations:
-                    tool_result = self.tool_registry.invoke(
-                        ToolInvocation(
-                            name=tool_plan.name,
-                            arguments=dict(tool_plan.arguments),
-                        ),
-                        auth_context=auth_context,
-                    )
-                    memory_tool_facts.append(
-                        ToolMemoryFact(
-                            name=tool_result.name,
-                            arguments=dict(tool_result.arguments),
-                            result=dict(tool_result.payload),
-                            artifact_version=tool_result.artifact_version,
-                        )
-                    )
-                    tool_traces.append(
-                        {
-                            "name": tool_result.name,
-                            "arguments": redact_value(tool_result.arguments),
-                            "result": redact_value(tool_result.payload),
-                            "warnings": list(tool_result.warnings),
-                            "artifact_version": tool_result.artifact_version,
-                        }
-                    )
-            except ProcessedStoreError as exc:
-                total_duration = measure_duration("chat_request", started_at)
-                debug = {}
-                if self.settings.enable_debug_traces:
-                    debug = {
-                        "route_decision": route_decision.to_debug_dict(),
-                        "grounding_mode": "tool",
-                        "tool_unavailable_reason": str(exc),
-                        "duration_ms": total_duration.milliseconds,
-                    }
-                response = format_chat_response(
-                    request_id=request_id,
-                    session_id=session_id,
-                    route=route_decision.route,
-                    answer=_tool_data_unavailable_answer(),
-                    tool_traces=[],
-                    citations=[],
-                    debug=debug,
-                )
-                return self._remember_response(
-                    response=response,
-                    user_message=request.message,
-                    auth_context=auth_context,
-                )
+        tool_traces, memory_tool_facts, tool_unavailable_reason = self._run_tool_invocations(
+            route_decision=route_decision,
+            auth_context=auth_context,
+        )
+        if tool_unavailable_reason is not None:
+            return self._handle_tool_unavailable(
+                request=request,
+                request_id=request_id,
+                session_id=session_id,
+                started_at=started_at,
+                route_decision=route_decision,
+                unavailable_reason=tool_unavailable_reason,
+                auth_context=auth_context,
+            )
 
-        if retrieval_requested:
-            if self.retriever is None:
-                retrieval_result = RetrieverResult.empty(reason="retriever_unavailable")
-            else:
-                retrieval_result = self.retriever.retrieve(request.message)
-            if retrieval_result.usable_context:
-                citations = [citation for citation in retrieval_result]
-
+        retrieval_result, citations = self._retrieve_context(
+            message=request.message,
+            retrieval_requested=retrieval_requested,
+        )
         grounding_mode = _resolve_grounding_mode(
             tool_traces=tool_traces,
             retrieval_result=retrieval_result,
@@ -353,27 +485,14 @@ class WorkflowEngine:
             )
 
         total_duration = measure_duration("chat_request", started_at)
-        debug = {}
-        if self.settings.enable_debug_traces:
-            debug = {
-                "route_decision": route_decision.to_debug_dict(),
-                "grounding_mode": grounding_mode,
-                "model_id": generation.model_id,
-                "llm_request_id": generation.request_id,
-                "usage": generation.usage,
-                "estimated_cost_usd": generation.estimated_cost_usd,
-                "duration_ms": total_duration.milliseconds,
-            }
-            if retrieval_requested:
-                debug.update(
-                    {
-                        "retrieval_reason": retrieval_result.fallback_reason,
-                        "retrieved_count": retrieval_result.retrieved_count,
-                        "accepted_citation_count": retrieval_result.accepted_count,
-                        "retrieval_top_score": retrieval_result.top_score,
-                    }
-                )
-
+        debug = self._generation_debug(
+            route_decision=route_decision,
+            grounding_mode=grounding_mode,
+            generation=generation,
+            total_duration_ms=total_duration.milliseconds,
+            retrieval_requested=retrieval_requested,
+            retrieval_result=retrieval_result,
+        )
         log_audit_event(
             event_type="chat_response",
             request_id=request_id,

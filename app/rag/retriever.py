@@ -27,6 +27,7 @@ MAX_ACCEPTED_CITATIONS = 3
 MIN_ACCEPTED_MATCHED_TERMS = 2
 MIN_ACCEPTED_TITLE_MATCHES = 1
 MIN_ACCEPTED_SCORE = 0.35
+DEFAULT_DOC_TITLE = "Payjack documentation"
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,62 +79,16 @@ class KnowledgeRetriever:
         top_chunk = ranked_chunks[0]
         top_score = float(top_chunk.get("score", 0.0))
         top_snippet = str(top_chunk.get("text", "")).strip()
-        top_match_count = int(top_chunk.get("matched_term_count", 0))
-        top_title_match_count = int(top_chunk.get("title_match_count", 0))
 
-        if not top_snippet:
+        rejection_reason = _chunk_rejection_reason(top_chunk, snippet=top_snippet)
+        if rejection_reason is not None:
             return RetrieverResult.empty(
-                reason="empty_top_snippet",
-                retrieved_count=len(ranked_chunks),
-                top_score=top_score,
-            )
-        if not _has_sufficient_overlap(
-            matched_term_count=top_match_count,
-            title_match_count=top_title_match_count,
-        ):
-            return RetrieverResult.empty(
-                reason="insufficient_term_overlap",
-                retrieved_count=len(ranked_chunks),
-                top_score=top_score,
-            )
-        if top_title_match_count < MIN_ACCEPTED_TITLE_MATCHES:
-            return RetrieverResult.empty(
-                reason="insufficient_title_overlap",
-                retrieved_count=len(ranked_chunks),
-                top_score=top_score,
-            )
-        if top_score < MIN_ACCEPTED_SCORE:
-            return RetrieverResult.empty(
-                reason="top_score_below_threshold",
+                reason=rejection_reason,
                 retrieved_count=len(ranked_chunks),
                 top_score=top_score,
             )
 
-        citations = []
-        for chunk in ranked_chunks:
-            snippet = str(chunk.get("text", "")).strip()
-            if not snippet:
-                continue
-            if not _has_sufficient_overlap(
-                matched_term_count=int(chunk.get("matched_term_count", 0)),
-                title_match_count=int(chunk.get("title_match_count", 0)),
-            ):
-                continue
-            if int(chunk.get("title_match_count", 0)) < MIN_ACCEPTED_TITLE_MATCHES:
-                continue
-            if float(chunk.get("score", 0.0)) < MIN_ACCEPTED_SCORE:
-                continue
-            citations.append(
-                {
-                    "doc_id": str(chunk.get("doc_id", "unknown")),
-                    "title": str(chunk.get("title", chunk.get("doc_id", "Payjack documentation"))),
-                    "snippet": snippet[:280],
-                    "score": float(chunk.get("score", 0.0)),
-                    "metadata": dict(chunk.get("metadata", {})),
-                }
-            )
-            if len(citations) >= MAX_ACCEPTED_CITATIONS:
-                break
+        citations = _accepted_citations(ranked_chunks)
 
         if not citations:
             return RetrieverResult.empty(
@@ -156,6 +111,50 @@ def _has_sufficient_overlap(*, matched_term_count: int, title_match_count: int) 
     if matched_term_count >= MIN_ACCEPTED_MATCHED_TERMS:
         return True
     return matched_term_count >= 1 and title_match_count >= MIN_ACCEPTED_TITLE_MATCHES
+
+
+def _chunk_rejection_reason(chunk: dict[str, Any], *, snippet: str) -> str | None:
+    if not snippet:
+        return "empty_top_snippet"
+    if not _chunk_has_accepted_overlap(chunk):
+        return "insufficient_term_overlap"
+    if int(chunk.get("title_match_count", 0)) < MIN_ACCEPTED_TITLE_MATCHES:
+        return "insufficient_title_overlap"
+    if float(chunk.get("score", 0.0)) < MIN_ACCEPTED_SCORE:
+        return "top_score_below_threshold"
+    return None
+
+
+def _chunk_has_accepted_overlap(chunk: dict[str, Any]) -> bool:
+    return _has_sufficient_overlap(
+        matched_term_count=int(chunk.get("matched_term_count", 0)),
+        title_match_count=int(chunk.get("title_match_count", 0)),
+    )
+
+
+def _accepted_citation_from_chunk(chunk: dict[str, Any]) -> dict[str, Any] | None:
+    snippet = str(chunk.get("text", "")).strip()
+    if _chunk_rejection_reason(chunk, snippet=snippet) is not None:
+        return None
+    return {
+        "doc_id": str(chunk.get("doc_id", "unknown")),
+        "title": str(chunk.get("title", chunk.get("doc_id", DEFAULT_DOC_TITLE))),
+        "snippet": snippet[:280],
+        "score": float(chunk.get("score", 0.0)),
+        "metadata": dict(chunk.get("metadata", {})),
+    }
+
+
+def _accepted_citations(ranked_chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    citations: list[dict[str, Any]] = []
+    for chunk in ranked_chunks:
+        citation = _accepted_citation_from_chunk(chunk)
+        if citation is None:
+            continue
+        citations.append(citation)
+        if len(citations) >= MAX_ACCEPTED_CITATIONS:
+            break
+    return citations
 
 
 def _load_local_chunks(path: Path) -> list[dict[str, Any]]:

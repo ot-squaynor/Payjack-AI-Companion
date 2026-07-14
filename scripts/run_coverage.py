@@ -23,8 +23,7 @@ def _normalize_coverage_sources() -> None:
     if sources_node is None:
         sources_node = ET.SubElement(root, "sources")
 
-    for child in list(sources_node):
-        sources_node.remove(child)
+    sources_node.clear()
 
     source_node = ET.SubElement(sources_node, "source")
     source_node.text = "."

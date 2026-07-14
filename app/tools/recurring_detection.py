@@ -203,6 +203,73 @@ def _normalize_optional_decimal(value: Any, field_name: str) -> Decimal | None:
     return normalized
 
 
+def _clean_optional_string(value: str | None) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _normalize_direction(direction: str | None) -> str | None:
+    if direction is None:
+        return None
+    if not isinstance(direction, str) or not direction.strip():
+        raise RecurringDetectionInputError(
+            "direction must be a non-empty string when provided."
+        )
+    normalized_direction = direction.strip().lower()
+    if normalized_direction not in ALLOWED_DIRECTIONS:
+        raise RecurringDetectionInputError(
+            f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
+        )
+    return normalized_direction
+
+
+def _normalize_sort_options(sort_options: dict[str, Any]) -> tuple[str, bool]:
+    sort_by = sort_options.pop("sort_by", DEFAULT_SORT_BY)
+    sort_descending = sort_options.pop("sort_descending", DEFAULT_SORT_DESCENDING)
+    if sort_options:
+        raise RecurringDetectionInputError(
+            f"Unsupported recurring detection options: {sorted(sort_options)}."
+        )
+    if not isinstance(sort_by, str) or not sort_by.strip():
+        raise RecurringDetectionInputError("sort_by must be a non-empty string.")
+    normalized_sort_by = sort_by.strip()
+    if normalized_sort_by not in ALLOWED_SORT_FIELDS:
+        raise RecurringDetectionInputError(
+            f"Unsupported sort_by '{sort_by}'. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}."
+        )
+    if not isinstance(sort_descending, bool):
+        raise RecurringDetectionInputError("sort_descending must be a boolean.")
+    return normalized_sort_by, sort_descending
+
+
+def _validate_positive_limit(limit: int) -> None:
+    if not isinstance(limit, int):
+        raise RecurringDetectionInputError("limit must be an integer.")
+    if limit <= 0:
+        raise RecurringDetectionInputError("limit must be greater than zero.")
+
+
+def _normalize_allowed_values(
+    values: Any,
+    *,
+    allowed_values: frozenset[str],
+    label: str,
+) -> tuple[str, ...]:
+    normalized_values = _normalize_string_tuple(values)
+    invalid_values = sorted(set(normalized_values).difference(allowed_values))
+    if invalid_values:
+        raise RecurringDetectionInputError(
+            f"Unsupported {label} values: {invalid_values}. Allowed values: {sorted(allowed_values)}."
+        )
+    return normalized_values
+
+
+def _validate_date_order(start_date: str | None, end_date: str | None) -> None:
+    if start_date and end_date and start_date > end_date:
+        raise RecurringDetectionInputError(
+            "start_date must be less than or equal to end_date."
+        )
+
+
 def normalize_recurring_detection_request(
     *,
     user_id: str | None = None,
@@ -217,62 +284,26 @@ def normalize_recurring_detection_request(
     start_date: str | None = None,
     end_date: str | None = None,
     limit: int = DEFAULT_LIMIT,
-    sort_by: str = DEFAULT_SORT_BY,
-    sort_descending: bool = DEFAULT_SORT_DESCENDING,
+    **sort_options: Any,
 ) -> RecurringDetectionRequest:
     """Validate and normalize raw request values into a deterministic recurrence request."""
-    cleaned_user_id = user_id.strip() if isinstance(user_id, str) and user_id.strip() else None
-    cleaned_start_date = start_date.strip() if isinstance(start_date, str) and start_date.strip() else None
-    cleaned_end_date = end_date.strip() if isinstance(end_date, str) and end_date.strip() else None
-
-    normalized_direction: str | None = None
-    if direction is not None:
-        if not isinstance(direction, str) or not direction.strip():
-            raise RecurringDetectionInputError(
-                "direction must be a non-empty string when provided."
-            )
-        normalized_direction = direction.strip().lower()
-        if normalized_direction not in ALLOWED_DIRECTIONS:
-            raise RecurringDetectionInputError(
-                f"Unsupported direction '{direction}'. Allowed values: {sorted(ALLOWED_DIRECTIONS)}."
-            )
-
-    if not isinstance(sort_by, str) or not sort_by.strip():
-        raise RecurringDetectionInputError("sort_by must be a non-empty string.")
-    normalized_sort_by = sort_by.strip()
-    if normalized_sort_by not in ALLOWED_SORT_FIELDS:
-        raise RecurringDetectionInputError(
-            f"Unsupported sort_by '{sort_by}'. Allowed values: {sorted(ALLOWED_SORT_FIELDS)}."
-        )
-
-    if not isinstance(sort_descending, bool):
-        raise RecurringDetectionInputError("sort_descending must be a boolean.")
-
-    if not isinstance(limit, int):
-        raise RecurringDetectionInputError("limit must be an integer.")
-    if limit <= 0:
-        raise RecurringDetectionInputError("limit must be greater than zero.")
-
-    normalized_cadences = _normalize_string_tuple(cadences)
-    invalid_cadences = sorted(set(normalized_cadences).difference(ALLOWED_CADENCES))
-    if invalid_cadences:
-        raise RecurringDetectionInputError(
-            f"Unsupported cadence values: {invalid_cadences}. Allowed values: {sorted(ALLOWED_CADENCES)}."
-        )
-
-    normalized_confidences = _normalize_string_tuple(confidences)
-    invalid_confidences = sorted(
-        set(normalized_confidences).difference(ALLOWED_CONFIDENCES)
+    cleaned_user_id = _clean_optional_string(user_id)
+    cleaned_start_date = _clean_optional_string(start_date)
+    cleaned_end_date = _clean_optional_string(end_date)
+    normalized_direction = _normalize_direction(direction)
+    normalized_sort_by, normalized_sort_descending = _normalize_sort_options(sort_options)
+    _validate_positive_limit(limit)
+    normalized_cadences = _normalize_allowed_values(
+        cadences,
+        allowed_values=ALLOWED_CADENCES,
+        label="cadence",
     )
-    if invalid_confidences:
-        raise RecurringDetectionInputError(
-            f"Unsupported confidence values: {invalid_confidences}. Allowed values: {sorted(ALLOWED_CONFIDENCES)}."
-        )
-
-    if cleaned_start_date and cleaned_end_date and cleaned_start_date > cleaned_end_date:
-        raise RecurringDetectionInputError(
-            "start_date must be less than or equal to end_date."
-        )
+    normalized_confidences = _normalize_allowed_values(
+        confidences,
+        allowed_values=ALLOWED_CONFIDENCES,
+        label="confidence",
+    )
+    _validate_date_order(cleaned_start_date, cleaned_end_date)
 
     return RecurringDetectionRequest(
         user_id=cleaned_user_id,
@@ -288,7 +319,7 @@ def normalize_recurring_detection_request(
         end_date=cleaned_end_date,
         limit=limit,
         sort_by=normalized_sort_by,
-        sort_descending=sort_descending,
+        sort_descending=normalized_sort_descending,
     )
 
 

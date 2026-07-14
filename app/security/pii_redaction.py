@@ -10,7 +10,7 @@ from typing import Any
 
 
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
-PHONE_RE = re.compile(r"(?<!\d)(?:\+?\d[\d -]{7,}\d)(?!\d)")
+PHONE_RE = re.compile(r"(?<!\d)\+?\d[\d -]{7,}\d(?!\d)")
 LONG_DIGIT_RE = re.compile(r"\b\d{10,19}\b")
 
 
