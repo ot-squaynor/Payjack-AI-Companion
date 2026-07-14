@@ -20,6 +20,7 @@ from app.security.auth_context import AuthContext
 
 DEFAULT_SESSION_TITLE = "New conversation"
 TITLE_MAX_CHARS = 60
+UPDATED_AT_VALUE_PLACEHOLDER = ":updated_at"
 TOOL_ECHO_PREFIX = "📊"
 _BATCH_DELETE_CHUNK_SIZE = 25
 
@@ -275,7 +276,7 @@ class ChatHistoryStore:
             response = self._sessions_table.update_item(
                 Key={"session_id": session_id},
                 UpdateExpression="SET title = :title, updated_at = :updated_at",
-                ExpressionAttributeValues={":title": title, ":updated_at": now},
+                ExpressionAttributeValues={":title": title, UPDATED_AT_VALUE_PLACEHOLDER: now},
                 ReturnValues="ALL_NEW",
             )
         except (BotoCoreError, ClientError) as exc:
@@ -295,7 +296,7 @@ class ChatHistoryStore:
         self._require_authorized_session_item(session_id=session_id, auth_context=auth_context)
         now = _now_iso()
         set_clauses = ["#status = :status", "updated_at = :updated_at"]
-        expression_values: dict[str, Any] = {":status": status, ":updated_at": now}
+        expression_values: dict[str, Any] = {":status": status, UPDATED_AT_VALUE_PLACEHOLDER: now}
         expression_names = {"#status": "status"}
         remove_clause = ""
         if status == "archived":
@@ -433,7 +434,7 @@ class ChatHistoryStore:
 
         preview = content.strip()[:140]
         set_clauses = ["updated_at = :updated_at", "last_message_preview = :preview", "last_message_role = :role"]
-        expression_values: dict[str, Any] = {":updated_at": now, ":preview": preview, ":role": role}
+        expression_values: dict[str, Any] = {UPDATED_AT_VALUE_PLACEHOLDER: now, ":preview": preview, ":role": role}
         if derived_title is not None:
             set_clauses.append("title = :title")
             expression_values[":title"] = derived_title
