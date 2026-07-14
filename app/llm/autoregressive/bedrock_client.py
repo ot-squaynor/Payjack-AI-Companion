@@ -18,6 +18,9 @@ from app.errors import ModelInvocationError
 from app.llm.autoregressive.model_selector import select_model
 from app.telemetry.cost_tracking import estimate_generation_cost
 
+UNKNOWN_MERCHANT = "Unknown merchant"
+DEFAULT_DOC_TITLE = "Payjack documentation"
+
 ##BRICK 2: Generation request and result models, and client protocol
 @dataclass(frozen=True, slots=True)
 class GenerationRequest:
@@ -66,129 +69,188 @@ class MockBedrockClient:
         )
 
     def _build_summary(self, request: GenerationRequest) -> str:
-        if request.tool_results:
-            first_result = request.tool_results[0]
-            tool_name = first_result.get("name")
-            payload = first_result.get("result", {})
+        tool_summary = self._build_tool_summary(request)
+        if tool_summary is not None:
+            return tool_summary
 
-            if tool_name == "transaction_lookup":
-                records = payload.get("records", [])
-                if not records:
-                    return "I could not find any transactions that match those filters."
-                lines = ["Here are the latest matching transactions:"]
-                for record in records[:5]:
-                    lines.append(
-                        "- {timestamp}: {merchant} {amount} {currency}".format(
-                            timestamp=str(record.get("timestamp", ""))[:10],
-                            merchant=record.get("merchant", "Unknown merchant"),
-                            amount=record.get("amount", "0.00"),
-                            currency=record.get("currency", ""),
-                        )
-                    )
-                return "\n".join(lines)
-
-            if tool_name == "spend_summary":
-                grouped = payload.get("grouped_breakdown", [])
-                total = payload.get("total_amount", "0.00")
-                txn_count = payload.get("transaction_count", 0)
-                lines = [f"Total spend for the selected filters is {total} across {txn_count} transactions."]
-                if grouped:
-                    lines.append("Top breakdown:")
-                    for row in grouped[:3]:
-                        lines.append(
-                            "- {key}: {amount} ({count} transactions)".format(
-                                key=row.get("key", "unknown"),
-                                amount=row.get("total_amount", "0.00"),
-                                count=row.get("transaction_count", 0),
-                            )
-                        )
-                return "\n".join(lines)
-
-            if tool_name == "recurring_detection":
-                records = payload.get("records", [])
-                if not records:
-                    return "I could not find any recurring payments that match those filters."
-                lines = ["I found these recurring payment patterns:"]
-                for row in records[:5]:
-                    lines.append(
-                        "- {merchant}: {cadence} at about {amount} {currency}".format(
-                            merchant=row.get("merchant", "Unknown merchant"),
-                            cadence=row.get("cadence", "unknown cadence"),
-                            amount=row.get("average_amount", "0.00"),
-                            currency=row.get("currency", ""),
-                        )
-                    )
-                return "\n".join(lines)
-
-            if tool_name == "balances":
-                records = payload.get("records", [])
-                if not records:
-                    return "I could not find any balances for the selected account scope."
-                lines = ["Here are the available account balances:"]
-                for record in records[:5]:
-                    lines.append(
-                        "- {name}: {available} {currency} available".format(
-                            name=record.get("account_name") or record.get("account_id", "Account"),
-                            available=record.get("available_balance", record.get("current_balance", "unknown")),
-                            currency=record.get("currency", ""),
-                        )
-                    )
-                return "\n".join(lines)
-
-            if tool_name == "status_explanation":
-                counts = payload.get("counts_by_status", {})
-                if not counts:
-                    return "I could not find transaction status information for that scope."
-                lines = ["Here is the transaction status breakdown:"]
-                for status, count in counts.items():
-                    lines.append(f"- {status}: {count}")
-                return "\n".join(lines)
-
-            if tool_name == "fee_breakdown":
-                records = payload.get("records", [])
-                total = payload.get("total_amount", "0.00")
-                if not records:
-                    return "I could not find fee-like transactions that match those filters."
-                lines = [f"I found {len(records)} fee-like transaction(s), totaling {total} across the selected filters:"]
-                for record in records[:5]:
-                    lines.append(
-                        "- {timestamp}: {merchant} {amount} {currency} ({reason})".format(
-                            timestamp=str(record.get("timestamp", ""))[:10],
-                            merchant=record.get("merchant", "Unknown merchant"),
-                            amount=record.get("amount", "0.00"),
-                            currency=record.get("currency", ""),
-                            reason=record.get("matched_reason", "fee match"),
-                        )
-                    )
-                if request.citations:
-                    lines.append("I can also use the accepted Payjack documentation to explain the policy context.")
-                return "\n".join(lines)
-
-        if request.grounding_mode in {"rag", "hybrid"} and request.citations:
-            lines = ["Based on the accepted Payjack documentation, here are the most relevant details:"]
-            for citation in request.citations[:2]:
-                lines.append(
-                    "- {title}: {snippet}".format(
-                        title=citation.get("title", "Payjack documentation"),
-                        snippet=citation.get("snippet", ""),
-                    )
-                )
-            return "\n".join(lines)
+        rag_summary = self._build_rag_summary(request)
+        if rag_summary is not None:
+            return rag_summary
 
         if request.grounding_mode == "base":
-            if request.route == "safe_general_route":
-                return (
-                    "Here is a general explanation: this request does not need private Payjack data, so I can answer from general knowledge. "
-                    "For Payjack-specific rules or current account details, I would need grounded documentation or read-only account context."
-                )
-            if request.route in {"rag", "rag_route"}:
-                return (
-                    "I could not verify that in reliable Payjack documentation, so I do not want to invent fees, "
-                    "limits, policies, or app steps. Please check the relevant Payjack docs or try a more specific question."
-                )
-            return "I can help explain Payjack transactions and documentation, but I need more reliable context to answer that well."
+            return self._build_base_summary(request)
 
         return "I can help with transaction lookups, spend summaries, recurring payments, and Payjack documentation."
+
+    def _build_tool_summary(self, request: GenerationRequest) -> str | None:
+        if not request.tool_results:
+            return None
+
+        first_result = request.tool_results[0]
+        tool_name = first_result.get("name")
+        payload = first_result.get("result", {})
+        if tool_name == "fee_breakdown":
+            return self._summarize_fee_breakdown(
+                payload,
+                has_citations=bool(request.citations),
+            )
+
+        handlers = {
+            "transaction_lookup": self._summarize_transaction_lookup,
+            "spend_summary": self._summarize_spend_summary,
+            "recurring_detection": self._summarize_recurring_detection,
+            "balances": self._summarize_balances,
+            "status_explanation": self._summarize_status_explanation,
+        }
+        handler = handlers.get(str(tool_name))
+        if handler is None:
+            return None
+
+        return handler(payload)
+
+    def _summarize_transaction_lookup(self, payload: dict[str, Any]) -> str:
+        records = payload.get("records", [])
+        if not records:
+            return "I could not find any transactions that match those filters."
+
+        lines = ["Here are the latest matching transactions:"]
+        for record in records[:5]:
+            lines.append(
+                "- {timestamp}: {merchant} {amount} {currency}".format(
+                    timestamp=str(record.get("timestamp", ""))[:10],
+                    merchant=record.get("merchant", UNKNOWN_MERCHANT),
+                    amount=record.get("amount", "0.00"),
+                    currency=record.get("currency", ""),
+                )
+            )
+        return "\n".join(lines)
+
+    def _summarize_spend_summary(self, payload: dict[str, Any]) -> str:
+        grouped = payload.get("grouped_breakdown", [])
+        total = payload.get("total_amount", "0.00")
+        txn_count = payload.get("transaction_count", 0)
+        lines = [
+            f"Total spend for the selected filters is {total} across {txn_count} transactions."
+        ]
+        if grouped:
+            lines.append("Top breakdown:")
+            for row in grouped[:3]:
+                lines.append(
+                    "- {key}: {amount} ({count} transactions)".format(
+                        key=row.get("key", "unknown"),
+                        amount=row.get("total_amount", "0.00"),
+                        count=row.get("transaction_count", 0),
+                    )
+                )
+        return "\n".join(lines)
+
+    def _summarize_recurring_detection(self, payload: dict[str, Any]) -> str:
+        records = payload.get("records", [])
+        if not records:
+            return "I could not find any recurring payments that match those filters."
+
+        lines = ["I found these recurring payment patterns:"]
+        for row in records[:5]:
+            lines.append(
+                "- {merchant}: {cadence} at about {amount} {currency}".format(
+                    merchant=row.get("merchant", UNKNOWN_MERCHANT),
+                    cadence=row.get("cadence", "unknown cadence"),
+                    amount=row.get("average_amount", "0.00"),
+                    currency=row.get("currency", ""),
+                )
+            )
+        return "\n".join(lines)
+
+    def _summarize_balances(self, payload: dict[str, Any]) -> str:
+        records = payload.get("records", [])
+        if not records:
+            return "I could not find any balances for the selected account scope."
+
+        lines = ["Here are the available account balances:"]
+        for record in records[:5]:
+            lines.append(
+                "- {name}: {available} {currency} available".format(
+                    name=record.get("account_name") or record.get("account_id", "Account"),
+                    available=record.get(
+                        "available_balance",
+                        record.get("current_balance", "unknown"),
+                    ),
+                    currency=record.get("currency", ""),
+                )
+            )
+        return "\n".join(lines)
+
+    def _summarize_status_explanation(self, payload: dict[str, Any]) -> str:
+        counts = payload.get("counts_by_status", {})
+        if not counts:
+            return "I could not find transaction status information for that scope."
+
+        lines = ["Here is the transaction status breakdown:"]
+        for status, count in counts.items():
+            lines.append(f"- {status}: {count}")
+        return "\n".join(lines)
+
+    def _summarize_fee_breakdown(
+        self,
+        payload: dict[str, Any],
+        *,
+        has_citations: bool,
+    ) -> str:
+        records = payload.get("records", [])
+        total = payload.get("total_amount", "0.00")
+        if not records:
+            return "I could not find fee-like transactions that match those filters."
+
+        lines = [
+            (
+                f"I found {len(records)} fee-like transaction(s), "
+                f"totaling {total} across the selected filters:"
+            )
+        ]
+        for record in records[:5]:
+            lines.append(
+                "- {timestamp}: {merchant} {amount} {currency} ({reason})".format(
+                    timestamp=str(record.get("timestamp", ""))[:10],
+                    merchant=record.get("merchant", UNKNOWN_MERCHANT),
+                    amount=record.get("amount", "0.00"),
+                    currency=record.get("currency", ""),
+                    reason=record.get("matched_reason", "fee match"),
+                )
+            )
+        if has_citations:
+            lines.append(
+                "I can also use the accepted Payjack documentation to explain the policy context."
+            )
+        return "\n".join(lines)
+
+    def _build_rag_summary(self, request: GenerationRequest) -> str | None:
+        if request.grounding_mode not in {"rag", "hybrid"} or not request.citations:
+            return None
+
+        lines = [
+            "Based on the accepted Payjack documentation, here are the most relevant details:"
+        ]
+        for citation in request.citations[:2]:
+            lines.append(
+                "- {title}: {snippet}".format(
+                    title=citation.get("title", DEFAULT_DOC_TITLE),
+                    snippet=citation.get("snippet", ""),
+                )
+            )
+        return "\n".join(lines)
+
+    def _build_base_summary(self, request: GenerationRequest) -> str:
+        if request.route == "safe_general_route":
+            return (
+                "Here is a general explanation: this request does not need private Payjack data, so I can answer from general knowledge. "
+                "For Payjack-specific rules or current account details, I would need grounded documentation or read-only account context."
+            )
+        if request.route in {"rag", "rag_route"}:
+            return (
+                "I could not verify that in reliable Payjack documentation, so I do not want to invent fees, "
+                "limits, policies, or app steps. Please check the relevant Payjack docs or try a more specific question."
+            )
+        return "I can help explain Payjack transactions and documentation, but I need more reliable context to answer that well."
 
 ##BRICK 4: Bedrock runtime client and real model invocation
 class BedrockRuntimeClient:
