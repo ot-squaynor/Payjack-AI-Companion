@@ -113,4 +113,4 @@ Neither path alone gives a complete answer. Hybrid merges both.
 
 ---
 
-*Previous: [09 — Folder Architecture](09-folder-architecture.md) · Back to [01 — System Overview](01-system-overview.md)*
+*Previous: [09 — Folder Architecture](09-folder-architecture.md) · Next: [11 — Roadmap: Future Integrations](11-roadmap-future-integrations.md)*
